@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, {
+  Box,
   Button,
   ButtonGroup,
   CodeBlock,
@@ -22,10 +23,13 @@ import ForgeReconciler, {
   Stack,
   Text,
   TextArea,
-  Textfield,
   User,
+  xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
+
+// 草稿列的證據類型選單固定寬度，避免被擠到只剩一個字
+const evidenceSelectStyle = xcss({ width: '160px' });
 
 // 議題面板：沒有工作單／草稿／已核准三種狀態，加上證據細節與覆核的對話框。
 // 所有寫入都經過 resolver，resolver 會用 context 決定議題與使用者並檢查編輯權限。
@@ -70,19 +74,26 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
       {rows.map((row, index) => (
         <Stack key={`row-${index}`} space="space.050">
           <Label labelFor={`criterion-${index}`}>{`AC-${index + 1}`}</Label>
+          <TextArea
+            id={`criterion-${index}`}
+            value={row.text}
+            minimumRows={2}
+            resize="vertical"
+            placeholder="Describe one testable acceptance criterion"
+            onChange={(event) => update(index, { text: event.target.value })}
+          />
           <Inline space="space.100" alignBlock="center">
-            <Textfield
-              id={`criterion-${index}`}
-              value={row.text}
-              placeholder="Describe one testable acceptance criterion"
-              onChange={(event) => update(index, { text: event.target.value })}
-            />
-            <Select
-              inputId={`evidence-${index}`}
-              options={EVIDENCE_OPTIONS}
-              value={EVIDENCE_OPTIONS.find((o) => o.value === row.evidenceType)}
-              onChange={(option) => update(index, { evidenceType: option?.value ?? 'test' })}
-            />
+            <Text size="small" color="color.text.subtle">
+              Evidence required
+            </Text>
+            <Box xcss={evidenceSelectStyle}>
+              <Select
+                inputId={`evidence-${index}`}
+                options={EVIDENCE_OPTIONS}
+                value={EVIDENCE_OPTIONS.find((o) => o.value === row.evidenceType)}
+                onChange={(option) => update(index, { evidenceType: option?.value ?? 'test' })}
+              />
+            </Box>
             <Button appearance="subtle" iconBefore="trash" onClick={() => setRows(rows.filter((_, i) => i !== index))}>
               Remove
             </Button>
@@ -94,7 +105,7 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
           Add criterion
         </Button>
       </Inline>
-      <ButtonGroup label="Draft actions">
+      <Inline space="space.100" alignBlock="center">
         <LoadingButton appearance="primary" isLoading={busy === 'approve'} isDisabled={filled === 0 || Boolean(busy)} onClick={() => onApprove(rows)}>
           Approve
         </LoadingButton>
@@ -104,7 +115,7 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
         <LoadingButton appearance="subtle" isLoading={busy === 'discard'} isDisabled={Boolean(busy)} onClick={onDiscard}>
           Discard
         </LoadingButton>
-      </ButtonGroup>
+      </Inline>
     </Stack>
   );
 }
@@ -198,12 +209,12 @@ function ReviewModal({ criterion, decision, busy, onConfirm, onClose }) {
 function WorkOrderTable({ view, onDetails, onReview }) {
   const head = {
     cells: [
-      { key: 'id', content: 'ID' },
-      { key: 'text', content: 'Criterion' },
-      { key: 'type', content: 'Required evidence' },
-      { key: 'status', content: 'Status' },
-      { key: 'latest', content: 'Latest evidence' },
-      { key: 'review', content: 'Review' },
+      { key: 'id', content: 'ID', width: 8 },
+      { key: 'text', content: 'Criterion', width: 34 },
+      { key: 'type', content: 'Required', width: 10 },
+      { key: 'status', content: 'Status', width: 14 },
+      { key: 'latest', content: 'Latest evidence', width: 22 },
+      { key: 'review', content: 'Review', width: 12 },
     ],
   };
   const rows = view.state.criteria.map((criterion) => {
