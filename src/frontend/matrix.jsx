@@ -150,11 +150,11 @@ function App() {
         caption={`Traceability matrix for ${data.projectKey}`}
         head={{
           cells: [
-            { key: 'key', content: 'Issue' },
-            { key: 'title', content: 'Title' },
-            { key: 'rev', content: 'Work order' },
-            { key: 'progress', content: 'Accepted' },
-            { key: 'gaps', content: 'Gaps' },
+            { key: 'key', content: 'Issue', width: 10 },
+            { key: 'title', content: 'Title', width: 42 },
+            { key: 'rev', content: 'Work order', width: 12 },
+            { key: 'progress', content: 'Accepted', width: 10 },
+            { key: 'gaps', content: 'Gaps', width: 26 },
           ],
         }}
         rows={rows}

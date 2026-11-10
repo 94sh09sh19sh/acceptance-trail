@@ -210,11 +210,11 @@ function WorkOrderTable({ view, onDetails, onReview }) {
   const head = {
     cells: [
       { key: 'id', content: 'ID', width: 8 },
-      { key: 'text', content: 'Criterion', width: 34 },
+      { key: 'text', content: 'Criterion', width: 30 },
       { key: 'type', content: 'Required', width: 10 },
-      { key: 'status', content: 'Status', width: 14 },
+      { key: 'status', content: 'Status', width: 16 },
       { key: 'latest', content: 'Latest evidence', width: 22 },
-      { key: 'review', content: 'Review', width: 12 },
+      { key: 'review', content: 'Review', width: 14 },
     ],
   };
   const rows = view.state.criteria.map((criterion) => {
@@ -232,10 +232,8 @@ function WorkOrderTable({ view, onDetails, onReview }) {
           key: 'latest',
           content: ev ? (
             <Stack space="space.050">
-              <Inline space="space.050" alignBlock="center">
-                <Lozenge appearance={verdict.appearance}>{verdict.text}</Lozenge>
-                <Text size="small">{formatTime(ev.at)}</Text>
-              </Inline>
+              <Lozenge appearance={verdict.appearance}>{verdict.text}</Lozenge>
+              <Text size="small">{formatTime(ev.at)}</Text>
               <Text maxLines={2}>{ev.summary}</Text>
               <Button appearance="subtle" spacing="compact" onClick={() => onDetails(criterion)}>
                 Details
