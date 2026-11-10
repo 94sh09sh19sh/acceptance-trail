@@ -28,6 +28,10 @@ import ForgeReconciler, {
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
+// 草稿列的固定代號（只在前端用，送出前會拿掉）
+let nextUid = 0;
+const withUid = (row) => ({ ...row, uid: `r${nextUid++}` });
+
 // 草稿列的證據類型選單固定寬度，避免被擠到只剩一個字
 const evidenceSelectStyle = xcss({ width: '160px' });
 
@@ -59,9 +63,13 @@ async function call(name, payload) {
 }
 
 function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
-  const [rows, setRows] = useState(draft.criteria.length ? draft.criteria : [{ text: '', evidenceType: 'test' }]);
-  const update = (index, patch) => setRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  // 每列帶一個固定的 uid 當 React key：輸入框是非受控的，刪除中間一列時不能讓後面的列接手它的內容
+  const [rows, setRows] = useState(() =>
+    (draft.criteria.length ? draft.criteria : [{ text: '', evidenceType: 'test' }]).map(withUid),
+  );
+  const update = (uid, patch) => setRows((prev) => prev.map((row) => (row.uid === uid ? { ...row, ...patch } : row)));
   const filled = rows.filter((row) => row.text.trim()).length;
+  const plainRows = () => rows.map(({ uid, ...rest }) => rest);
 
   return (
     <Stack space="space.150">
@@ -72,15 +80,15 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
           : 'Edit the criteria and choose the evidence each one needs. Agents cannot read this until you approve it.'}
       </Text>
       {rows.map((row, index) => (
-        <Stack key={`row-${index}`} space="space.050">
-          <Label labelFor={`criterion-${index}`}>{`AC-${index + 1}`}</Label>
+        <Stack key={row.uid} space="space.050">
+          <Label labelFor={`criterion-${row.uid}`}>{`AC-${index + 1}`}</Label>
           <TextArea
-            id={`criterion-${index}`}
-            value={row.text}
+            id={`criterion-${row.uid}`}
+            defaultValue={row.text}
             minimumRows={2}
             resize="vertical"
             placeholder="Describe one testable acceptance criterion"
-            onChange={(event) => update(index, { text: event.target.value })}
+            onChange={(event) => update(row.uid, { text: event.target.value })}
           />
           <Inline space="space.100" alignBlock="center">
             <Text size="small" color="color.text.subtle">
@@ -88,28 +96,28 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
             </Text>
             <Box xcss={evidenceSelectStyle}>
               <Select
-                inputId={`evidence-${index}`}
+                inputId={`evidence-${row.uid}`}
                 options={EVIDENCE_OPTIONS}
                 value={EVIDENCE_OPTIONS.find((o) => o.value === row.evidenceType)}
-                onChange={(option) => update(index, { evidenceType: option?.value ?? 'test' })}
+                onChange={(option) => update(row.uid, { evidenceType: option?.value ?? 'test' })}
               />
             </Box>
-            <Button appearance="subtle" iconBefore="trash" onClick={() => setRows(rows.filter((_, i) => i !== index))}>
+            <Button appearance="subtle" iconBefore="trash" onClick={() => setRows((prev) => prev.filter((r) => r.uid !== row.uid))}>
               Remove
             </Button>
           </Inline>
         </Stack>
       ))}
       <Inline space="space.100">
-        <Button iconBefore="add" onClick={() => setRows([...rows, { text: '', evidenceType: 'test' }])}>
+        <Button iconBefore="add" onClick={() => setRows((prev) => [...prev, withUid({ text: '', evidenceType: 'test' })])}>
           Add criterion
         </Button>
       </Inline>
       <Inline space="space.100" alignBlock="center">
-        <LoadingButton appearance="primary" isLoading={busy === 'approve'} isDisabled={filled === 0 || Boolean(busy)} onClick={() => onApprove(rows)}>
+        <LoadingButton appearance="primary" isLoading={busy === 'approve'} isDisabled={filled === 0 || Boolean(busy)} onClick={() => onApprove(plainRows())}>
           Approve
         </LoadingButton>
-        <LoadingButton isLoading={busy === 'save'} isDisabled={Boolean(busy)} onClick={() => onSave(rows)}>
+        <LoadingButton isLoading={busy === 'save'} isDisabled={Boolean(busy)} onClick={() => onSave(plainRows())}>
           Save draft
         </LoadingButton>
         <LoadingButton appearance="subtle" isLoading={busy === 'discard'} isDisabled={Boolean(busy)} onClick={onDiscard}>
@@ -191,7 +199,8 @@ function ReviewModal({ criterion, decision, busy, onConfirm, onClose }) {
         <Stack space="space.100">
           <Text>{criterion.latestEvidence.summary}</Text>
           <Label labelFor="review-note">Note (optional)</Label>
-          <TextArea id="review-note" value={note} onChange={(event) => setNote(event.target.value)} />
+          {/* 不可綁 value：UI Kit 的受控輸入會在打字時被舊值蓋回去，只留下最後一個字元 */}
+          <TextArea id="review-note" defaultValue="" onChange={(event) => setNote(event.target.value)} />
         </Stack>
       </ModalBody>
       <ModalFooter>
