@@ -1,0 +1,221 @@
+modules:
+  jira:issuePanel:
+    - key: evidence-panel
+      resource: panel
+      resolver:
+        function: resolver
+      render: native
+      title: Evidence Chain
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+  jira:projectPage:
+    - key: trace-matrix
+      resource: matrix
+      resolver:
+        function: resolver
+      render: native
+      title: Evidence Matrix
+  rovo:mcp:
+    - key: evidence-mcp
+      name: Evidence Chain
+      tools:
+        - get-work-order
+        - list-open-work-orders
+        - get-evidence-status
+        - submit-evidence
+        - propose-work-order
+        - list-gaps
+  rovo:agent:
+    - key: evidence-auditor
+      name: Evidence Auditor
+      description: Answers which acceptance criteria still lack evidence in a Jira project or issue, using Evidence Chain records.
+      prompt: >
+        You are Evidence Auditor. You help software teams see which acceptance
+        criteria in Jira still lack verified evidence from AI coding agents.
+
+        Answer only from data returned by your actions. Never invent issues,
+        criteria, verdicts, reviewers or evidence. If an action returns an
+        error or no data, say so plainly and suggest the next step.
+
+        Do not judge whether evidence is sufficient, correct or compliant.
+        Report the recorded facts: status (no-evidence, submitted, accepted,
+        rejected), gap kind (no-evidence, failed, unreviewed, rejected, stale),
+        criterion IDs and work order revisions. Only people can approve work
+        orders and accept or reject evidence in the Jira issue panel; you
+        cannot do either, and you must say so if asked.
+
+        For project questions such as "what evidence is still missing", call
+        list-gaps with the project key. If the user has not given a project
+        key and the conversation context does not include one, ask for it.
+        For questions about one issue, call get-evidence-status, and
+        get-work-order when the user wants the criteria text.
+
+        If the user asks you to draft acceptance criteria, you may call
+        propose-work-order, then tell the user the draft must be reviewed and
+        approved by a person in the issue panel.
+
+        Keep answers short. Group gaps by issue, list criterion IDs with
+        their gap kind, and mention stale work orders separately.
+      conversationStarters:
+        - What evidence is still missing in this project?
+        - Which work orders still have gaps?
+        - Show the evidence status for an issue
+      actions:
+        - get-work-order
+        - list-open-work-orders
+        - get-evidence-status
+        - propose-work-order
+        - list-gaps
+  action:
+    - key: get-work-order
+      name: Get work order
+      function: getWorkOrder
+      actionVerb: GET
+      description: Call before working on a Jira issue. Returns the human-approved work order, with revision and criteria (criterionId, text, required evidence type). If status is not-approved there are no criteria yet; a person must approve in Jira.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The Jira issue key, for example BMS-12.
+    - key: list-open-work-orders
+      name: List open work orders
+      function: listOpenWorkOrders
+      actionVerb: GET
+      description: >
+        Lists approved work orders in a Jira project that still have gaps.
+        Returns issue key, title, work order revision and gap count for each.
+        Use it to find work that still needs evidence.
+      inputs:
+        projectKey:
+          title: Project key
+          type: string
+          required: true
+          description: The Jira project key, for example BMS.
+    - key: get-evidence-status
+      name: Get evidence status
+      function: getEvidenceStatus
+      actionVerb: GET
+      description: Returns each criterion's status (no-evidence, submitted, accepted, rejected), gap kind, latest verdict, reviewer note, and whether the evidence chain verifies. Use it to check progress after submitting evidence.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The Jira issue key, for example BMS-12.
+    - key: submit-evidence
+      name: Submit evidence
+      function: submitEvidence
+      actionVerb: CREATE
+      description: Records evidence for one acceptance criterion; call once per criterion. workOrderRev and criterionId must match get-work-order or nothing is stored. Report failures as fail or not-run. Returns event seq and hash; long text is truncated.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The Jira issue key, for example BMS-12.
+        criterionId:
+          title: Criterion ID
+          type: string
+          required: true
+          description: The criterion ID from get-work-order, for example AC-2.
+        workOrderRev:
+          title: Work order revision
+          type: integer
+          required: true
+          description: The workOrderRev returned by get-work-order.
+        verdict:
+          title: Verdict
+          type: string
+          required: true
+          description: One of pass, fail, not-run.
+        evidenceType:
+          title: Evidence type
+          type: string
+          required: true
+          description: One of test, analysis, review, demo. Prefer the type the criterion requires.
+        summary:
+          title: Summary
+          type: string
+          required: true
+          description: What you did and what the result shows, in plain language. Up to 2000 characters.
+        reference:
+          title: Reference
+          type: string
+          required: false
+          description: A commit SHA or CI run link. Up to 500 characters.
+        outputExcerpt:
+          title: Output excerpt
+          type: string
+          required: false
+          description: The relevant part of the test or tool output. Up to 4000 characters.
+        agentName:
+          title: Agent name
+          type: string
+          required: true
+          description: Your name, for example Claude Code.
+    - key: propose-work-order
+      name: Propose work order
+      function: proposeWorkOrder
+      actionVerb: CREATE
+      description: >
+        Saves a draft work order for a Jira issue and waits for a person to
+        approve it in Jira. It never changes the approved revision; if one
+        exists, the draft becomes the next revision. Use it when an issue has
+        no usable acceptance criteria.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The Jira issue key, for example BMS-12.
+        criteriaJson:
+          title: Criteria JSON
+          type: string
+          required: true
+          description: 'A JSON array string, for example [{"text":"Discharge stops above 60 C","evidenceType":"test"}]. evidenceType is one of test, analysis, review, demo.'
+    - key: list-gaps
+      name: List gaps
+      function: listGaps
+      actionVerb: GET
+      description: >
+        Lists evidence gaps in a Jira project, grouped by issue. Each gap has a
+        kind (no-evidence, failed, unreviewed, rejected, stale) and the
+        criterion ID it applies to (null for stale work orders). Use it to
+        answer what evidence is still missing.
+      inputs:
+        projectKey:
+          title: Project key
+          type: string
+          required: true
+          description: The Jira project key, for example BMS.
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: getWorkOrder
+      handler: index.getWorkOrder
+    - key: listOpenWorkOrders
+      handler: index.listOpenWorkOrders
+    - key: getEvidenceStatus
+      handler: index.getEvidenceStatus
+    - key: submitEvidence
+      handler: index.submitEvidence
+    - key: proposeWorkOrder
+      handler: index.proposeWorkOrder
+    - key: listGaps
+      handler: index.listGaps
+resources:
+  - key: panel
+    path: src/frontend/panel.jsx
+  - key: matrix
+    path: src/frontend/matrix.jsx
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/ce2a1488-ddf0-481d-ba69-e606897cb462
+permissions:
+  scopes:
+    - storage:app
+    - read:jira-work
+    - write:jira-work

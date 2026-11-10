@@ -1,0 +1,19 @@
+{
+  "name": "evidence-chain",
+  "version": "0.1.0",
+  "description": "Evidence Chain for Jira: human-approved work orders, per-criterion evidence from AI coding agents, and a traceability matrix.",
+  "main": "index.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "@forge/api": "^8.5.0",
+    "@forge/bridge": "^7.3.0",
+    "@forge/kvs": "^2.1.2",
+    "@forge/react": "^12.5.0",
+    "@forge/resolver": "^2.0.2",
+    "react": "^18.3.1"
+  }
+}
