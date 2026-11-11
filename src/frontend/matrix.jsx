@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, {
   Box,
+  Button,
   DynamicTable,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  ModalTransition,
+  TextArea,
   EmptyState,
   Heading,
   Inline,
@@ -71,6 +79,70 @@ function GettingStarted() {
   );
 }
 
+const FORMAT_OPTIONS = [
+  { label: 'Markdown (.md)', value: 'markdown' },
+  { label: 'CSV (.csv)', value: 'csv' },
+];
+
+// Audit pack export. UI Kit cannot start a file download, so the pack is shown as text to copy
+// into a file with the suggested name.
+function ExportModal({ onClose }) {
+  const [format, setFormat] = useState(FORMAT_OPTIONS[0]);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const load = async (option) => {
+    setFormat(option);
+    setResult(null);
+    setError(null);
+    try {
+      const response = await invoke('exportAudit', { format: option.value });
+      if (!response?.ok) throw new Error(response?.error?.message ?? 'Request failed.');
+      setResult(response.data);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => {
+    load(FORMAT_OPTIONS[0]);
+  }, []);
+
+  return (
+    <Modal onClose={onClose} width="x-large">
+      <ModalHeader>
+        <ModalTitle>Export audit pack</ModalTitle>
+      </ModalHeader>
+      <ModalBody>
+        <Stack space="space.150">
+          <Inline space="space.100" alignBlock="center">
+            <Label labelFor="export-format">Format</Label>
+            <Select inputId="export-format" options={FORMAT_OPTIONS} value={format} onChange={(option) => option && load(option)} />
+          </Inline>
+          {error ? (
+            <SectionMessage appearance="error" title="Could not build the audit pack">
+              <Text>{error}</Text>
+            </SectionMessage>
+          ) : null}
+          {!result && !error ? <Spinner label="Building audit pack" /> : null}
+          {result ? (
+            <Stack space="space.100">
+              <Text size="small">
+                {`${result.issueCount} issues. Select all text in the box, copy it, and save it as ${result.fileName}. People appear as Atlassian account IDs; the app does not store names.`}
+              </Text>
+              {/* key forces a fresh uncontrolled box per format; UI Kit inputs must not bind value */}
+              <TextArea key={`${result.format}-${result.content.length}`} id="export-content" defaultValue={result.content} isReadOnly isMonospaced minimumRows={16} resize="vertical" />
+            </Stack>
+          ) : null}
+        </Stack>
+      </ModalBody>
+      <ModalFooter>
+        <Button onClick={onClose}>Close</Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
 function matches(issue, filter) {
   if (filter === 'all') return true;
   if (filter === 'any') return issue.gapCount > 0;
@@ -81,6 +153,7 @@ function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState(ALL);
+  const [exporting, setExporting] = useState(false);
 
   const load = async () => {
     setError(null);
@@ -142,9 +215,14 @@ function App() {
         <Stat label="Accepted" value={data.totals.accepted} />
         <Stat label="Gaps" value={data.totals.gaps} />
       </Inline>
-      <Inline space="space.100" alignBlock="center">
-        <Label labelFor="gap-filter">Filter by gap</Label>
-        <Select inputId="gap-filter" options={FILTER_OPTIONS} value={filter} onChange={(option) => setFilter(option ?? ALL)} />
+      <Inline space="space.100" alignBlock="center" spread="space-between">
+        <Inline space="space.100" alignBlock="center">
+          <Label labelFor="gap-filter">Filter by gap</Label>
+          <Select inputId="gap-filter" options={FILTER_OPTIONS} value={filter} onChange={(option) => setFilter(option ?? ALL)} />
+        </Inline>
+        <Button iconBefore="download" onClick={() => setExporting(true)}>
+          Export audit pack
+        </Button>
       </Inline>
       <DynamicTable
         caption={`Traceability matrix for ${data.projectKey}`}
@@ -162,8 +240,9 @@ function App() {
         emptyView={<Text>No issues match this filter.</Text>}
       />
       <Text size="small" color="color.text.subtle">
-        Stale markers update when someone opens the issue panel or an agent reads the work order.
+        Stale markers update automatically a few minutes after an issue description changes.
       </Text>
+      <ModalTransition>{exporting ? <ExportModal onClose={() => setExporting(false)} /> : null}</ModalTransition>
     </Stack>
   );
 }

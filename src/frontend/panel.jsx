@@ -375,6 +375,13 @@ function App() {
             </SectionMessage>
           ) : null}
           <WorkOrderTable view={view} onDetails={setDetails} onReview={(criterion, decision) => setReview({ criterion, decision })} />
+          {state.previousRevisions?.length ? (
+            <Text size="small" color="color.text.subtle">
+              {`Earlier revisions: ${state.previousRevisions
+                .map((p) => `revision ${p.rev} had ${p.evidenceCount} evidence ${p.evidenceCount === 1 ? 'record' : 'records'} (${p.accepted}/${p.total} accepted)`)
+                .join('; ')}. They stay in the chain but do not count toward revision ${workOrder.rev}, so agents report again for this revision.`}
+            </Text>
+          ) : null}
           {canEdit && !draft && !stale ? (
             <Inline>
               <Button appearance="subtle" onClick={() => run('draftFromDescription', 'draft')}>
@@ -397,6 +404,28 @@ function App() {
         />
       ) : null}
       {draft && !canEdit ? <Text size="small">{`A draft for revision ${nextRev} is waiting for someone with edit permission to approve it.`}</Text> : null}
+
+      {/* Shown only when the backend reports the development-only tools as enabled; production never does */}
+      {view.devTools && workOrder ? (
+        <Stack space="space.100">
+          <Heading size="xsmall">Developer tools (development environment only)</Heading>
+          <Text size="small">
+            Simulates someone editing a stored event outside the app, so you can see the chain report it. These buttons do not exist in production.
+          </Text>
+          <Inline space="space.100">
+            <LoadingButton appearance="warning" isLoading={busy === 'tamper'} isDisabled={Boolean(busy)} onClick={() => run('devTamper', 'tamper')}>
+              Edit latest event
+            </LoadingButton>
+            <LoadingButton
+              isLoading={busy === 'restore'}
+              isDisabled={Boolean(busy) || view.devTools.tampered === 0}
+              onClick={() => run('devRestore', 'restore')}
+            >
+              {`Restore edited events (${view.devTools.tampered})`}
+            </LoadingButton>
+          </Inline>
+        </Stack>
+      ) : null}
 
       <ModalTransition>
         {details ? <EvidenceModal criterion={details} onClose={() => setDetails(null)} /> : null}

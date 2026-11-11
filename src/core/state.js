@@ -72,7 +72,27 @@ export function deriveState(events, workOrder, { stale = false } = {}) {
     gapCount: criterionGaps + (stale ? 1 : 0),
     gapKinds,
     criteria,
+    previousRevisions: workOrder.isPrevious ? [] : previousRevisions(events, workOrder.rev),
   };
+}
+
+// Evidence is bound to the revision it was submitted for. After a new revision is approved,
+// older evidence and reviews stay in the chain (append-only) but never count toward the new
+// revision: every criterion starts again at no-evidence, even if its text did not change.
+// This summarises what each earlier revision had, rebuilt from its approval event.
+function previousRevisions(events, currentRev) {
+  return events
+    .filter((e) => e.type === EVENT_TYPES.APPROVED && e.payload?.rev < currentRev && Array.isArray(e.payload?.criteria))
+    .map((approval) => {
+      const old = deriveState(events, { rev: approval.payload.rev, criteria: approval.payload.criteria, isPrevious: true });
+      return {
+        rev: old.rev,
+        total: old.total,
+        accepted: old.accepted,
+        evidenceCount: old.criteria.reduce((n, c) => n + c.evidenceCount, 0),
+      };
+    })
+    .sort((a, b) => a.rev - b.rev);
 }
 
 function evidenceView(event) {

@@ -2,10 +2,11 @@ import Resolver from '@forge/resolver';
 import { jiraClient } from '../jira/client.js';
 import { kvsStore } from '../storage/kvs.js';
 import { errorResult } from '../actions/tools.js';
+import { devToolsEnabled } from './devtools-guard.js';
 import { contextIdentity, createResolverLogic } from './logic.js';
 
 // 議題面板（evidence-panel）與專案頁（trace-matrix）共用的 resolver
-const logic = createResolverLogic({ store: kvsStore, jira: jiraClient });
+const logic = createResolverLogic({ store: kvsStore, jira: jiraClient, devToolsEnabled });
 const resolver = new Resolver();
 
 // 統一回傳 { ok: true, data } 或 { ok: false, error }，前端據此顯示錯誤畫面
@@ -36,5 +37,9 @@ define('review', (identity, payload) =>
   logic.review(identity, { evidenceSeq: payload.evidenceSeq, decision: payload.decision, note: payload.note }),
 );
 define('getMatrix', (identity) => logic.getMatrix(identity));
+define('exportAudit', (identity, payload) => logic.exportAudit(identity, { format: payload.format }));
+// Development-only tamper tools: refused unless devToolsEnabled() passes (see devtools-guard.js)
+define('devTamper', (identity) => logic.devTamper(identity));
+define('devRestore', (identity) => logic.devRestore(identity));
 
 export const handler = resolver.getDefinitions();

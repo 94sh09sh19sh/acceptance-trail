@@ -109,6 +109,10 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
           latestVerdict: c.latestEvidence?.verdict ?? null,
           reviewNote: c.review?.note || undefined,
         })),
+        previousRevisions: state.previousRevisions.length ? state.previousRevisions : undefined,
+        previousRevisionsNote: state.previousRevisions.length
+          ? `Evidence for earlier revisions stays in the chain but does not count toward revision ${state.rev}. Submit evidence again with workOrderRev=${state.rev}.`
+          : undefined,
       };
     },
 

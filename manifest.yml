@@ -7,6 +7,16 @@ modules:
       render: native
       title: Evidence Chain
       icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+  jira:issueContext:
+    - key: evidence-glance
+      resource: glance
+      resolver:
+        function: resolver
+      render: native
+      title: Evidence Chain
+      label: Status
+      dynamicProperties:
+        function: glanceStatus
   jira:projectPage:
     - key: trace-matrix
       resource: matrix
@@ -14,6 +24,13 @@ modules:
         function: resolver
       render: native
       title: Evidence Matrix
+  trigger:
+    - key: issue-updated
+      function: issueUpdated
+      events:
+        - avi:jira:updated:issue
+      filter:
+        ignoreSelf: true
   rovo:mcp:
     - key: evidence-mcp
       name: Evidence Chain
@@ -203,9 +220,15 @@ modules:
       handler: index.proposeWorkOrder
     - key: listGaps
       handler: index.listGaps
+    - key: glanceStatus
+      handler: index.glanceStatus
+    - key: issueUpdated
+      handler: index.issueUpdated
 resources:
   - key: panel
     path: src/frontend/panel.jsx
+  - key: glance
+    path: src/frontend/glance.jsx
   - key: matrix
     path: src/frontend/matrix.jsx
 app:
