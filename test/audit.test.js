@@ -39,7 +39,7 @@ async function setup() {
     AGENT,
   );
   await ui.review({ ...HUMAN, issueId: '10001' }, { evidenceSeq: sent.seq, decision: 'accept', note: 'Checked' });
-  // The viewer cannot see BMS-2, so the export must leave it out
+  // 檢視者看不到 BMS-2，所以匯出內容必須排除它
   const viewerJira = createFakeJira({ issues: [...jira.issues.values()], projects: [{ projectId: '20000', projectKey: 'BMS', name: 'Battery' }], hidden: ['10002'] });
   return { ui: createResolverLogic({ store, jira: viewerJira, now }), store, sent };
 }
@@ -52,7 +52,7 @@ test('audit export CSV: one row per criterion, quoted safely, formula cells neut
   assert.equal(result.issueCount, 1);
   const lines = result.content.trim().split('\r\n');
   assert.equal(lines[0], CSV_COLUMNS.join(','));
-  // Header + 2 criteria of BMS-1; the multi-line summary stays inside one quoted cell
+  // 標題列加上 BMS-1 的 2 條驗收條件；多行的摘要留在同一個有引號的儲存格內
   assert.equal(result.content.split('\r\n').filter((l) => l.startsWith('BMS-')).length, 2);
   assert.ok(result.content.includes(`"'=HYPERLINK(""x"") simulated, with ""quotes"", commas\nand a newline"`));
   assert.ok(result.content.includes('accept'));
@@ -68,7 +68,7 @@ test('audit export Markdown: totals, chain status, escaped table cells, no hidde
   assert.match(text, /not a compliance determination/);
   assert.match(text, /\| 1 \| 2 \| 1 \| 1 \|/);
   assert.match(text, /## BMS-1: Over-temperature/);
-  // approval, evidence, review
+  // 核准、證據、覆核
   assert.match(text, /Evidence chain: verified, 3 events, last hash [0-9a-f]{12}/);
   assert.ok(text.includes('Cut discharge, then log \\| fault'));
   assert.ok(text.includes(`#${sent.seq}, hash ${sent.hash.slice(0, 12)}`));

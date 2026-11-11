@@ -5,8 +5,8 @@ import { createResolverLogic } from '../src/resolvers/logic.js';
 import { createTools } from '../src/actions/tools.js';
 import { adfDoc, createMemoryStore, h, ul } from './helpers.js';
 
-// Simulated Forge API: each request is answered by a handler keyed on "<as> <method> <path>".
-// No site has a second account, so these tests stand in for a viewer without edit permission.
+// 模擬 Forge API：每個請求由以 "<as> <method> <path>" 為鍵的處理函式回應。
+// 站台上沒有第二個帳號，所以用這些測試代替沒有編輯權限的檢視者。
 const ISSUE_BODY = {
   id: '10001',
   key: 'BMS-1',
@@ -69,7 +69,7 @@ test('a viewer without edit permission sees the panel read-only and every change
     const error = await attempt().catch((e) => e);
     assert.equal(error.code, 'FORBIDDEN', name);
   }
-  // Nothing was written: no draft, no work order, no events
+  // 什麼都沒寫入：沒有草稿、沒有工作單、沒有事件
   assert.deepEqual([...store.data.keys()], []);
 });
 
@@ -95,7 +95,7 @@ test('asUser 403 falls back to asApp only with an explicit browse check for the 
   const allowed = createJiraClient(fakeForgeApi(handlers(true)));
   assert.equal((await allowed.getIssue('BMS-1', { accountId: 'agent-account' })).issueKey, 'BMS-1');
 
-  // Unknown caller: no check is even attempted, the issue is treated as not visible
+  // 身分不明的呼叫者：連檢查都不會嘗試，直接視為看不到該議題
   const unknownApi = fakeForgeApi(handlers(true));
   assert.equal(await createJiraClient(unknownApi).getIssue('BMS-1', { accountId: 'unknown' }), null);
   assert.equal(unknownApi.calls.some((c) => c.includes('permissions/check')), false);

@@ -35,8 +35,8 @@ export function contextIdentity(context) {
   };
 }
 
-// devToolsEnabled: injected guard for the development-only tamper tools (see devtools-guard.js).
-// Tests and production default to "off" unless a guard is passed in.
+// devToolsEnabled：由外部注入的開發用竄改工具檢查（見 devtools-guard.js）。
+// 沒有傳入檢查函式時，測試與正式環境預設都是關閉。
 export function createResolverLogic({ store, jira, now = () => new Date().toISOString(), devToolsEnabled = () => false }) {
   function requireDevTools() {
     if (!devToolsEnabled()) {
@@ -59,7 +59,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
     return issue;
   }
 
-  // Matrix rows of the project that the current user can see, in natural key order (BMS-2 before BMS-10)
+  // 目前使用者看得到的專案矩陣列，依自然鍵順序排列（BMS-2 在 BMS-10 之前）
   async function visibleProjectSummaries(identity) {
     if (!identity.projectKey) throw new DomainError('NO_PROJECT', 'This view is not attached to a project.');
     const project = await jira.getProject(String(identity.projectKey), identity);
@@ -148,7 +148,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       return panelView(issue, identity);
     },
 
-    // Development only: edit the newest stored event without fixing its hash, to show "Chain broken"
+    // 僅限開發用：改動最新的已儲存事件但不修正雜湊，用來示範「Chain broken」
     async devTamper(identity) {
       requireDevTools();
       const issue = await requireEditor(identity);
@@ -158,7 +158,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       return panelView(issue, identity);
     },
 
-    // Development only: undo devTamper
+    // 僅限開發用：還原 devTamper 的改動
     async devRestore(identity) {
       requireDevTools();
       const issue = await requireEditor(identity);
@@ -176,8 +176,8 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       };
     },
 
-    // Extension 2: audit pack for the project page. Uses the stored summaries (kept fresh by the
-    // issue-updated trigger) for staleness, and re-verifies each issue's hash chain now.
+    // 擴充 2：專案頁面的稽核包。過期判斷使用已儲存的摘要（由議題更新 trigger 保持最新），
+    // 並且當場重新驗證每個議題的雜湊鏈。
     async exportAudit(identity, { format }) {
       if (!AUDIT_FORMATS.includes(format)) throw new DomainError('INVALID_FORMAT', `Format must be one of: ${AUDIT_FORMATS.join(', ')}.`);
       const { project, issues } = await visibleProjectSummaries(identity);

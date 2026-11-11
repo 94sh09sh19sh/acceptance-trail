@@ -76,10 +76,9 @@ export function deriveState(events, workOrder, { stale = false } = {}) {
   };
 }
 
-// Evidence is bound to the revision it was submitted for. After a new revision is approved,
-// older evidence and reviews stay in the chain (append-only) but never count toward the new
-// revision: every criterion starts again at no-evidence, even if its text did not change.
-// This summarises what each earlier revision had, rebuilt from its approval event.
+// 證據綁定在送出時的版次。核准新版次後，舊的證據與覆核仍留在鏈上（只能附加），
+// 但不會計入新版次：每條驗收條件都重新從沒有證據開始，即使條件文字沒有變。
+// 這裡彙整每個舊版次當時的內容，由該版次的核准事件重建。
 function previousRevisions(events, currentRev) {
   return events
     .filter((e) => e.type === EVENT_TYPES.APPROVED && e.payload?.rev < currentRev && Array.isArray(e.payload?.criteria))

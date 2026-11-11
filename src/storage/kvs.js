@@ -4,7 +4,7 @@ import { kvs, WhereConditions } from '@forge/kvs';
 // 查詢單頁上限依文件為 100 筆，用 cursor 讀完全部頁。
 const PAGE_SIZE = 100;
 
-// The KVS client is injected so the paging logic can be tested with a fake (test/paging.test.js).
+// KVS client 由外部注入，讓分頁邏輯可以用假的 client 測試（test/paging.test.js）。
 export function createKvsStore(client, where) {
   return {
     get(key) {

@@ -1,11 +1,9 @@
-// Extension 2 (spec section 10): audit pack export as CSV or Markdown.
-// Pure formatting; the resolver collects the data. People are shown as Atlassian account IDs
-// because the app never stores names.
+// 擴充 2（規格第 10 節）：把稽核包匯出成 CSV 或 Markdown。
+// 只負責格式化，資料由 resolver 蒐集。人員一律顯示 Atlassian account ID，因為 app 不儲存姓名。
 
 export const AUDIT_FORMATS = Object.freeze(['markdown', 'csv']);
 
-// Long agent text is cut so one export stays a manageable size; the event hash still points
-// to the full record in the chain.
+// 代理的長文字會截斷，讓單次匯出維持合理大小；事件雜湊仍指向鏈上的完整記錄。
 const MAX_TEXT = 500;
 
 const clip = (text, max = MAX_TEXT) => {
@@ -43,8 +41,7 @@ export const CSV_COLUMNS = [
   'reviewed_at',
 ];
 
-// RFC 4180 quoting. Cells that a spreadsheet would read as a formula get a leading apostrophe,
-// because agent-supplied text is untrusted.
+// 依 RFC 4180 加引號。試算表會當成公式的儲存格開頭加上單引號，因為代理提供的文字不可信。
 export function csvCell(value) {
   let text = value == null ? '' : String(value);
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
@@ -92,7 +89,7 @@ export function toCsv(pack) {
 
 // ---- Markdown ----
 
-// Table cells: no line breaks, escaped pipes, no raw HTML
+// 表格儲存格：不留換行、跳脫 | 字元、不放原始 HTML
 const md = (value) =>
   (value == null || value === '' ? '-' : String(value))
     .replace(/\r?\n/g, ' ')

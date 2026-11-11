@@ -38,7 +38,7 @@ define('review', (identity, payload) =>
 );
 define('getMatrix', (identity) => logic.getMatrix(identity));
 define('exportAudit', (identity, payload) => logic.exportAudit(identity, { format: payload.format }));
-// Development-only tamper tools: refused unless devToolsEnabled() passes (see devtools-guard.js)
+// 僅限開發用的竄改工具：devToolsEnabled() 沒通過就拒絕（見 devtools-guard.js）
 define('devTamper', (identity) => logic.devTamper(identity));
 define('devRestore', (identity) => logic.devRestore(identity));
 

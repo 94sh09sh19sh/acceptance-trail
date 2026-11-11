@@ -1,22 +1,22 @@
 import { EVENT_TYPES, listEvents } from './chain.js';
 import { eventKey } from './keys.js';
 
-// Development-only helpers that simulate someone editing stored records outside the app,
-// so the "Chain broken" state can be demonstrated on a development site.
-// The resolver only calls these after checking the development guard (resolvers/devtools-guard.js).
-// The original event is kept under a dev:backup key so the edit can be undone.
+// 僅限開發用的輔助函式：模擬有人在 app 之外改動儲存的記錄，
+// 讓開發站台可以示範「Chain broken」狀態。
+// resolver 要先通過開發環境檢查（resolvers/devtools-guard.js）才會呼叫這些函式。
+// 原始事件會備份在 dev:backup 鍵底下，之後可以還原。
 
 export const devBackupKey = (issueId, seq) => `dev:backup:${issueId}:${String(seq).padStart(6, '0')}`;
 export const devBackupPrefix = (issueId) => `dev:backup:${issueId}:`;
 
 export const TAMPER_MARK = ' [edited outside Evidence Chain]';
 
-// Edits the newest evidence event (or the newest event of any type) without updating its hash.
+// 改動最新的證據事件（沒有證據事件就改最新的任何事件），但不更新它的雜湊。
 export async function tamperLatestEvent(store, issueId) {
   const events = await listEvents(store, issueId);
   if (events.length === 0) return null;
   const target = [...events].reverse().find((e) => e.type === EVENT_TYPES.SUBMITTED) ?? events[events.length - 1];
-  // Keep only the first original: tampering twice must not overwrite the clean copy
+  // 只留第一份原始內容：竄改兩次也不能蓋掉乾淨的備份
   await store.setIfAbsent(devBackupKey(issueId, target.seq), target);
   const edited = structuredClone(target);
   if (edited.type === EVENT_TYPES.SUBMITTED) {
@@ -28,7 +28,7 @@ export async function tamperLatestEvent(store, issueId) {
   return { seq: target.seq, type: target.type };
 }
 
-// Puts every backed-up original back and removes the backups.
+// 把所有備份的原始事件放回去，並移除備份。
 export async function restoreTamperedEvents(store, issueId) {
   const backups = await store.listByPrefix(devBackupPrefix(issueId));
   for (const { key, value } of backups) {

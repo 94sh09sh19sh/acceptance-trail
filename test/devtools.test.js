@@ -23,7 +23,7 @@ function setup({ devTools = true, editors = true } = {}) {
 }
 
 async function approvedWithEvidence(ctx) {
-  // Approve as an editor, then submit one piece of evidence
+  // 先以有編輯權限的人核准，再送出一筆證據
   const editorUi = createResolverLogic({ store: ctx.store, jira: createFakeJira({ issues: [...ctx.jira.issues.values()] }), now: sequentialClock() });
   await editorUi.draftFromDescription(HUMAN);
   await editorUi.approve(HUMAN, {});
@@ -46,7 +46,7 @@ test('dev tools: tamper makes the chain broken, restore makes it verified again'
   assert.equal(view.devTools.tampered, 1);
   assert.ok(ctx.store.data.get(eventKey('10001', sent.seq)).payload.summary.endsWith(TAMPER_MARK));
 
-  // Tampering twice keeps the first clean copy as the backup
+  // 竄改兩次，備份仍保留第一份乾淨的內容
   await ctx.ui.devTamper(HUMAN);
   view = await ctx.ui.devRestore(HUMAN);
   assert.equal(view.chain.verified, true);

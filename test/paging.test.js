@@ -7,7 +7,7 @@ import { createResolverLogic } from '../src/resolvers/logic.js';
 import { createKvsStore } from '../src/storage/kvs.js';
 import { createFakeJira, createMemoryStore } from './helpers.js';
 
-// Simulated Forge KVS query API: pages of at most `limit` rows, continued with a cursor.
+// 模擬 Forge KVS 查詢 API：每頁最多 `limit` 筆，用 cursor 接續下一頁。
 function fakeKvs(entries) {
   const pagesServed = [];
   const client = {
@@ -69,7 +69,7 @@ test('permission check is sent in chunks of 1000 issue IDs', async () => {
       async requestJira(route, init) {
         const ids = JSON.parse(init.body).projectPermissions[0].issues;
         sent.push(ids.length);
-        // The caller cannot see issues whose ID ends in 7
+        // 呼叫者看不到 ID 尾數為 7 的議題
         const visible = ids.filter((id) => id % 10 !== 7);
         return { ok: true, status: 200, json: async () => ({ projectPermissions: [{ permission: 'BROWSE_PROJECTS', issues: visible }] }) };
       },
@@ -95,7 +95,7 @@ test('matrix and list-gaps with 60 issues: all rows returned in natural key orde
   assert.deepEqual(matrix.issues.slice(0, 3).map((i) => i.issueKey), ['BMS-1', 'BMS-2', 'BMS-3']);
   assert.equal(matrix.issues[9].issueKey, 'BMS-10');
   assert.equal(matrix.issues.at(-1).issueKey, 'BMS-59');
-  // 12 of the 60 issues have no gaps (i % 5 === 0); BMS-60 (i = 59) is hidden and has gaps
+  // 60 個議題中有 12 個沒有缺口（i % 5 === 0）；BMS-60（i = 59）被隱藏，而且有缺口
   assert.deepEqual(matrix.totals, { issues: 59, criteria: 236, accepted: 12 * 4 + 47 * 2, gaps: 47 * 2 });
 
   const tools = createTools({ store, jira });

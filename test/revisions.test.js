@@ -22,8 +22,8 @@ const evidence = (criterionId, workOrderRev, overrides = {}) => ({
   ...overrides,
 });
 
-// Revision 1 with evidence for AC-1 (accepted) and AC-2 (awaiting review), then the
-// description changes and revision 2 is approved with the same three criteria texts.
+// 版次 1 有 AC-1（已接受）與 AC-2（等待覆核）的證據，之後 description
+// 改動，並核准版次 2，三條驗收條件的文字與版次 1 相同。
 async function twoRevisions() {
   const store = createMemoryStore();
   const jira = createFakeJira({
@@ -75,11 +75,11 @@ test('revision 2: old evidence cannot be reviewed, old revision is rejected, new
   assert.match(status.previousRevisionsNote, /workOrderRev=2/);
   assert.equal(status.chainVerified, true);
 
-  // All events of both revisions stay in one chain
+  // 兩個版次的所有事件都留在同一條鏈上
   const events = await listEvents(store, '10001');
   assert.deepEqual(events.filter((e) => e.type === EVENT_TYPES.APPROVED).map((e) => e.payload.rev), [1, 2]);
 
-  // The matrix summary follows the current revision only
+  // 矩陣摘要只反映現行版次
   const summary = await store.get(summaryKey('20000', '10001'));
   assert.equal(summary.rev, 2);
   assert.equal(summary.accepted, 0);

@@ -44,7 +44,7 @@ export function createFakeJira({ issues = [], projects = [], hidden = [], editor
       if (!issue || hiddenSet.has(issue.issueId)) return null;
       return structuredClone(issue);
     },
-    // Background (trigger) read: the app can see every issue, hidden or not
+    // 背景（trigger）讀取：app 看得到每個議題，不論是否被隱藏
     async getIssueAsApp(issueId) {
       const issue = byId.get(String(issueId));
       return issue ? structuredClone(issue) : null;

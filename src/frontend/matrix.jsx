@@ -84,8 +84,8 @@ const FORMAT_OPTIONS = [
   { label: 'CSV (.csv)', value: 'csv' },
 ];
 
-// Audit pack export. UI Kit cannot start a file download, so the pack is shown as text to copy
-// into a file with the suggested name.
+// 稽核包匯出。UI Kit 無法觸發檔案下載，所以把稽核包顯示成文字，
+// 讓使用者複製後存成建議的檔名。
 function ExportModal({ onClose }) {
   const [format, setFormat] = useState(FORMAT_OPTIONS[0]);
   const [result, setResult] = useState(null);
@@ -130,7 +130,7 @@ function ExportModal({ onClose }) {
               <Text size="small">
                 {`${result.issueCount} issues. Select all text in the box, copy it, and save it as ${result.fileName}. People appear as Atlassian account IDs; the app does not store names.`}
               </Text>
-              {/* key forces a fresh uncontrolled box per format; UI Kit inputs must not bind value */}
+              {/* 用 key 讓每種格式都換成全新的非受控輸入框；UI Kit 的輸入元件不可綁定 value */}
               <TextArea key={`${result.format}-${result.content.length}`} id="export-content" defaultValue={result.content} isReadOnly isMonospaced minimumRows={16} resize="vertical" />
             </Stack>
           ) : null}

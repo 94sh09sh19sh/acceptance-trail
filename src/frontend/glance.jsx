@@ -10,9 +10,9 @@ import ForgeReconciler, {
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
-// Issue context panel (right-hand column of the issue view). Jira always shows its header,
-// so people find Evidence Chain without adding anything first. It is a read-only summary;
-// drafting, approving and reviewing happen in the full Evidence Chain issue panel.
+// 議題內容面板（議題頁面的右欄）。Jira 一定會顯示它的標題，
+// 所以使用者不用先加任何東西就找得到 Evidence Chain。這裡只是唯讀摘要；
+// 起草、核准與覆核都在完整的 Evidence Chain 議題面板裡進行。
 
 const STATUS_LOZENGE = {
   'no-evidence': { appearance: 'default', text: 'No evidence' },
@@ -91,7 +91,7 @@ function App() {
             <Inline key={criterion.id} space="space.100" alignBlock="center" shouldWrap>
               <Text weight="semibold">{criterion.id}</Text>
               <Lozenge appearance={status.appearance}>{status.text}</Lozenge>
-              {/* The status already says no evidence, unreviewed or rejected; only a failing verdict needs its own marker */}
+              {/* 狀態已經能表示沒有證據、未覆核或被駁回；只有判定為失敗時才需要另外標記 */}
               {criterion.gap === 'failed' ? <Lozenge appearance="removed">Failed</Lozenge> : null}
             </Inline>
           );

@@ -405,7 +405,7 @@ function App() {
       ) : null}
       {draft && !canEdit ? <Text size="small">{`A draft for revision ${nextRev} is waiting for someone with edit permission to approve it.`}</Text> : null}
 
-      {/* Shown only when the backend reports the development-only tools as enabled; production never does */}
+      {/* 只有後端回報開發用工具已啟用時才顯示；正式環境永遠不會啟用 */}
       {view.devTools && workOrder ? (
         <Stack space="space.100">
           <Heading size="xsmall">Developer tools (development environment only)</Heading>

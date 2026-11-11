@@ -4,7 +4,7 @@ import { createIssueUpdatedHandler } from './logic.js';
 
 const handleIssueUpdated = createIssueUpdatedHandler({ store: kvsStore, jira: jiraClient });
 
-// trigger module issue-updated (avi:jira:updated:issue). Logs only the issue ID and the outcome.
+// trigger 模組 issue-updated（avi:jira:updated:issue）。只記錄議題 ID 與處理結果。
 export async function issueUpdated(event) {
   const issueId = event?.issue?.id ? String(event.issue.id) : '-';
   try {

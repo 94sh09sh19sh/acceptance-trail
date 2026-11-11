@@ -24,8 +24,8 @@ function toIssue(body) {
   };
 }
 
-// The Forge API object is injected so the permission paths can be tested with simulated
-// Jira responses (test/permissions.test.js). Production uses jiraClient below.
+// Forge API 物件由外部注入，讓權限相關路徑可以用模擬的 Jira 回應來測試
+// （test/permissions.test.js）。正式環境使用下面的 jiraClient。
 export function createJiraClient(api) {
   async function requestWithFallback(makeRoute, init) {
     let userResponse = null;
@@ -80,8 +80,8 @@ export function createJiraClient(api) {
       return issue;
     },
 
-    // Issue read for background work (the issue-updated trigger), which has no user to act as.
-    // The result is only used to recompute stored summaries and is never returned to a caller.
+    // 背景工作（議題更新 trigger）讀取議題用，這種情況沒有可代表的使用者。
+    // 結果只用來重算已儲存的摘要，不會回傳給任何呼叫端。
     async getIssueAsApp(issueId) {
       const response = await api
         .asApp()

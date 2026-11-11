@@ -1,8 +1,8 @@
 import { draftKey, summaryKey } from './keys.js';
 
-// Status shown on the collapsed issue context panel (jira:issueContext dynamic properties).
-// It only reads stored data, so it is cheap and needs no Jira call:
-// the matrix summary (written whenever the issue state is refreshed) and the draft, if any.
+// 議題內容面板收合時顯示的狀態（jira:issueContext 的 dynamic properties）。
+// 只讀取已儲存的資料，所以成本低、不用呼叫 Jira：
+// 資料來源是矩陣摘要（每次重新整理議題狀態時寫入）與草稿（如果有的話）。
 
 const lozenge = (label, type) => ({ type: 'lozenge', value: { label, type } });
 

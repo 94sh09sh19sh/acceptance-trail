@@ -1,9 +1,9 @@
 import { loadGlanceStatus } from '../core/glance.js';
 import { kvsStore } from '../storage/kvs.js';
 
-// dynamicProperties handler of the jira:issueContext module (evidence-glance).
-// Jira calls it when the issue view first renders and whenever the context panel is collapsed.
-// It returns only a short status label; never log the payload (it carries a context token).
+// jira:issueContext 模組（evidence-glance）的 dynamicProperties 處理函式。
+// Jira 會在議題頁面首次繪製時，以及內容面板每次收合時呼叫它。
+// 它只回傳簡短的狀態標籤；不可記錄 payload（裡面帶有 context token）。
 export async function glanceStatus(payload, context) {
   const ext = payload?.extension ?? context?.extension ?? {};
   try {
