@@ -159,6 +159,8 @@ export function createJiraClient(api) {
       } catch {
         response = null;
       }
+      // 診斷 log：只記走哪條路徑與有沒有 accountId 的布林值，不含任何個人資料
+      console.log(`[canEdit] asUser=${response?.ok ? 'ok' : response ? `status-${response.status}` : 'threw'} hasAccountId=${Boolean(caller?.accountId) && caller.accountId !== 'unknown'}`);
       if (response?.ok) {
         const body = await readJson(response);
         return Boolean(body?.permissions?.EDIT_ISSUES?.havePermission);

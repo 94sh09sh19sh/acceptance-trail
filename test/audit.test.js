@@ -66,6 +66,8 @@ test('audit export Markdown: totals, chain status, escaped table cells, no hidde
   const text = result.content;
   assert.match(text, /^# Evidence audit pack: BMS/);
   assert.match(text, /not a compliance determination/);
+  assert.match(text, /from Proof of Done records/);
+  assert.doesNotMatch(text, /Evidence Chain records/);
   assert.match(text, /\| 1 \| 2 \| 1 \| 1 \|/);
   assert.match(text, /## BMS-1: Over-temperature/);
   // 核准、證據、覆核

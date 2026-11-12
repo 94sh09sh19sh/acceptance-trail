@@ -26,7 +26,7 @@ const NEEDS_EDIT = (issueKey, what) =>
   `You can view ${issueKey} but do not have permission to edit it, so you cannot ${what}. Nothing was stored. Ask a person who can edit the issue, or use the read-only tools.`;
 
 const NEEDS_APPROVAL =
-  'A person must draft and approve the work order in the Evidence Chain panel on the Jira issue. Agents cannot approve work orders.';
+  'A person must draft and approve the work order in the Proof of Done panel on the Jira issue. Agents cannot approve work orders.';
 
 export function errorResult(error) {
   if (error instanceof ValidationError) return { ok: false, error: { code: 'INVALID_INPUT', message: error.message } };

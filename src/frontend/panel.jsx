@@ -286,7 +286,7 @@ function ResetModal({ issueKey, busy, onConfirm, onClose }) {
   return (
     <Modal onClose={onClose}>
       <ModalHeader>
-        <ModalTitle>{`Reset Evidence Chain data for ${issueKey}?`}</ModalTitle>
+        <ModalTitle>{`Reset Proof of Done data for ${issueKey}?`}</ModalTitle>
       </ModalHeader>
       <ModalBody>
         <Text>
@@ -306,64 +306,75 @@ function ResetModal({ issueKey, busy, onConfirm, onClose }) {
 }
 
 function WorkOrderTable({ view, onDetails, onReview }) {
+  // 欄數少、條件文字欄最寬：主欄窄時也讀得順。Required 併入條件欄的小字，覆核按鈕放在最新證據欄內第二行。
   const head = {
     cells: [
-      { key: 'id', content: 'ID', width: 8 },
-      { key: 'text', content: 'Criterion', width: 30 },
-      { key: 'type', content: 'Required', width: 10 },
-      { key: 'status', content: 'Status', width: 16 },
-      { key: 'latest', content: 'Latest evidence', width: 22 },
-      { key: 'review', content: 'Review', width: 14 },
+      { key: 'id', content: 'ID', width: 10 },
+      { key: 'text', content: 'Criterion', width: 40 },
+      { key: 'status', content: 'Status', width: 18 },
+      { key: 'latest', content: 'Latest evidence and review', width: 32 },
     ],
   };
   const rows = view.state.criteria.map((criterion) => {
     const status = STATUS_LOZENGE[criterion.status];
     const ev = criterion.latestEvidence;
     const verdict = ev ? VERDICT_LOZENGE[ev.verdict] : null;
+    const canReview = criterion.status === 'submitted' && view.canEdit;
     return {
       key: criterion.id,
       cells: [
         { key: 'id', content: criterion.id },
-        { key: 'text', content: criterion.text },
-        { key: 'type', content: criterion.evidenceType },
+        {
+          key: 'text',
+          content: (
+            <Stack space="space.050">
+              <Text>{criterion.text}</Text>
+              <Text size="small" color="color.text.subtle">{`Required evidence: ${criterion.evidenceType}`}</Text>
+            </Stack>
+          ),
+        },
         { key: 'status', content: <Lozenge appearance={status.appearance}>{status.text}</Lozenge> },
         {
           key: 'latest',
-          content: ev ? (
-            <Stack space="space.050">
-              <Lozenge appearance={verdict.appearance}>{verdict.text}</Lozenge>
-              <Text size="small">{formatTime(ev.at)}</Text>
-              <Text maxLines={2}>{ev.summary}</Text>
-              {criterion.evidenceCount > 1 ? (
-                <Text size="small" color="color.text.subtle">
-                  {`${countLabel(criterion.evidenceCount - 1, 'earlier submission')}, see Details`}
-                </Text>
+          content: (
+            <Stack space="space.075">
+              {ev ? (
+                <Stack space="space.050">
+                  <Lozenge appearance={verdict.appearance}>{verdict.text}</Lozenge>
+                  <Text size="small">{formatTime(ev.at)}</Text>
+                  <Text maxLines={2}>{ev.summary}</Text>
+                  {criterion.evidenceCount > 1 ? (
+                    <Text size="small" color="color.text.subtle">
+                      {`${countLabel(criterion.evidenceCount - 1, 'earlier submission')}, see Details`}
+                    </Text>
+                  ) : null}
+                </Stack>
+              ) : (
+                <Text color="color.text.subtle">None yet</Text>
+              )}
+              <Inline space="space.100" alignBlock="center" shouldWrap>
+                {ev ? (
+                  <Button appearance="subtle" spacing="compact" onClick={() => onDetails(criterion)}>
+                    Details
+                  </Button>
+                ) : null}
+                {canReview ? (
+                  <ButtonGroup label={`Review ${criterion.id}`}>
+                    <Button spacing="compact" onClick={() => onReview(criterion, 'accept')}>
+                      Accept
+                    </Button>
+                    <Button spacing="compact" appearance="subtle" onClick={() => onReview(criterion, 'reject')}>
+                      Reject
+                    </Button>
+                  </ButtonGroup>
+                ) : null}
+              </Inline>
+              {criterion.status === 'submitted' && !view.canEdit ? <Text size="small">Awaiting reviewer</Text> : null}
+              {criterion.status !== 'submitted' && criterion.review?.note ? (
+                <Text size="small" color="color.text.subtle">{criterion.review.note}</Text>
               ) : null}
-              <Button appearance="subtle" spacing="compact" onClick={() => onDetails(criterion)}>
-                Details
-              </Button>
             </Stack>
-          ) : (
-            <Text color="color.text.subtle">None yet</Text>
           ),
-        },
-        {
-          key: 'review',
-          content:
-            criterion.status === 'submitted' && view.canEdit ? (
-              <ButtonGroup label={`Review ${criterion.id}`}>
-                <Button spacing="compact" onClick={() => onReview(criterion, 'accept')}>
-                  Accept
-                </Button>
-                <Button spacing="compact" appearance="subtle" onClick={() => onReview(criterion, 'reject')}>
-                  Reject
-                </Button>
-              </ButtonGroup>
-            ) : criterion.status === 'submitted' ? (
-              <Text size="small">Awaiting reviewer</Text>
-            ) : (
-              <Text size="small">{criterion.review?.note ?? ''}</Text>
-            ),
         },
       ],
     };
@@ -414,7 +425,7 @@ function App() {
 
   if (loadError) {
     return (
-      <SectionMessage appearance="error" title="Could not load Evidence Chain" actions={[<SectionMessageAction key="retry" onClick={load}>Try again</SectionMessageAction>]}>
+      <SectionMessage appearance="error" title="Could not load Proof of Done" actions={[<SectionMessageAction key="retry" onClick={load}>Try again</SectionMessageAction>]}>
         <Text>{loadError}</Text>
       </SectionMessage>
     );
@@ -493,7 +504,7 @@ function App() {
           ) : null}
           {canEdit && !draft && !stale ? (
             <Inline>
-              <Button appearance="subtle" onClick={() => run('draftFromDescription', 'draft')}>
+              <Button onClick={() => run('draftFromDescription', 'draft')}>
                 Draft new revision
               </Button>
             </Inline>
@@ -542,7 +553,7 @@ function App() {
           </Text>
           <Inline space="space.100">
             <Button appearance="danger" isDisabled={Boolean(busy)} onClick={() => setConfirmReset(true)}>
-              {"Reset this issue's Evidence Chain data"}
+              {"Reset this issue's Proof of Done data"}
             </Button>
           </Inline>
           {view.reset ? (

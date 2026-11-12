@@ -5,7 +5,7 @@ modules:
       resolver:
         function: resolver
       render: native
-      title: Evidence Chain
+      title: Proof of Done
       icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
   jira:issueContext:
     - key: evidence-glance
@@ -13,7 +13,7 @@ modules:
       resolver:
         function: resolver
       render: native
-      title: Evidence Chain
+      title: Proof of Done
       label: Status
       dynamicProperties:
         function: glanceStatus
@@ -59,7 +59,7 @@ modules:
         ignoreSelf: true
   rovo:mcp:
     - key: evidence-mcp
-      name: Evidence Chain
+      name: Proof of Done
       tools:
         - get-work-order
         - list-open-work-orders
@@ -70,7 +70,7 @@ modules:
   rovo:agent:
     - key: evidence-auditor
       name: Evidence Auditor
-      description: Answers which acceptance criteria still lack evidence in a Jira project or issue, using Evidence Chain records.
+      description: Answers which acceptance criteria still lack evidence in a Jira project or issue, using Proof of Done records.
       prompt: >
         You are Evidence Auditor. You help software teams see which acceptance
         criteria in Jira still lack verified evidence from AI coding agents.

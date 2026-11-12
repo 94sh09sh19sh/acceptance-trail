@@ -134,3 +134,18 @@ test('submit-evidence when asUser is refused (403): browse and edit are both che
   assert.ok(editorApi.calls.includes('user PUT /rest/api/3/issue/10001/properties/evidence-chain-summary'));
   assert.equal(editorApi.calls.some((c) => c.startsWith('app PUT')), false);
 });
+
+test('canEditIssue: 診斷 log 只記路徑與 accountId 有無，不含 accountId 本身', async () => {
+  const lines = [];
+  const original = console.log;
+  console.log = (...args) => lines.push(args.join(' '));
+  try {
+    const user403 = [/^user GET .*mypermissions/, () => json(403, {})];
+    await createJiraClient(fakeForgeApi([user403, appPermissionCheck({ edit: true })])).canEditIssue('10001', AGENT);
+  } finally {
+    console.log = original;
+  }
+  const line = lines.find((l) => l.startsWith('[canEdit]'));
+  assert.equal(line, '[canEdit] asUser=status-403 hasAccountId=true');
+  assert.ok(!line.includes('agent-account'));
+});

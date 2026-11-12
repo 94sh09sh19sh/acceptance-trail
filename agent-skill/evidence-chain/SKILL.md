@@ -1,11 +1,11 @@
 ---
 name: evidence-chain
-description: Use when you are asked to implement or verify a Jira issue and the Evidence Chain MCP tools are available (get-work-order, submit-evidence, get-evidence-status), or when the user mentions a work order, acceptance criteria evidence, or an issue key like BMS-1. Fetches the person-approved work order, implements it, runs tests, reports honest evidence for every acceptance criterion, and checks what is still missing.
+description: Use when you are asked to implement or verify a Jira issue and the Proof of Done MCP tools are available (get-work-order, submit-evidence, get-evidence-status), or when the user mentions a work order, acceptance criteria evidence, or an issue key like BMS-1. Fetches the person-approved work order, implements it, runs tests, reports honest evidence for every acceptance criterion, and checks what is still missing.
 ---
 
-# Evidence Chain workflow
+# Proof of Done workflow
 
-Evidence Chain is a Jira app. A person approves a **work order**: acceptance criteria `AC-1`, `AC-2`, ... plus a revision number. You implement it and report **evidence per criterion** through MCP tools. A person then reviews each piece of evidence.
+Proof of Done is a Jira app. A person approves a **work order**: acceptance criteria `AC-1`, `AC-2`, ... plus a revision number. You implement it and report **evidence per criterion** through MCP tools. A person then reviews each piece of evidence.
 
 Your client may add an environment suffix to tool names, for example `get-work-order_development`. Match on the base name.
 
@@ -21,7 +21,7 @@ The tools run with the Jira permissions of the account you connected with. Readi
 1. **Fetch.** Call `get-work-order` with `issueKey` (for example `BMS-1`).
 2. **Check the answer.**
    - `ok: false`: see Errors.
-   - `status: "not-approved"`: stop. Tell the person that a work order must be approved in the Evidence Chain panel on the issue (`hasDraft: true` means a draft is already waiting). Do not implement or submit anything yet.
+   - `status: "not-approved"`: stop. Tell the person that a work order must be approved in the Proof of Done panel on the issue (`hasDraft: true` means a draft is already waiting). Do not implement or submit anything yet.
    - `status: "approved"`: note `workOrderRev` and, for each criterion, `criterionId`, `text` and `requiredEvidenceType`.
    - `stale: true`: see Stale work orders.
 3. **Implement** one criterion at a time. Treat each criterion's `text` as the requirement; do not reword it. Give every criterion at least one test whose name contains its ID, such as `test_ac3_...`, so output maps back to criteria.
@@ -53,7 +53,7 @@ Failures come back as `{ok: false, error: {code, message}}` and nothing is store
 A successful `submit-evidence` returns `seq` and `hash`. If `truncated` lists fields, they were cut at the limits; keep the important lines at the start of long text.
 
 ## Stale work orders
-`stale: true` (from `get-work-order` or `get-evidence-status`) means the issue description changed after approval, so the criteria may be out of date. The server still accepts evidence for the approved revision, but do not carry on silently. Stop, tell the person, and ask them to review the issue and use "Draft new revision" in the Evidence Chain panel and approve it. Continue on the current revision only if the person says so, and then note in each summary that the work order was stale.
+`stale: true` (from `get-work-order` or `get-evidence-status`) means the issue description changed after approval, so the criteria may be out of date. The server still accepts evidence for the approved revision, but do not carry on silently. Stop, tell the person, and ask them to review the issue and use "Draft new revision" in the Proof of Done panel and approve it. Continue on the current revision only if the person says so, and then note in each summary that the work order was stale.
 
 ## Gap check
 `get-evidence-status` returns `chainVerified`, `stale`, `gapCount` and, per criterion, `status` (`no-evidence`, `submitted`, `accepted`, `rejected`), `gap`, `latestVerdict` and `reviewNote`.

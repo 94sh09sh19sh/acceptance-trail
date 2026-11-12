@@ -1,7 +1,7 @@
 {
   "name": "evidence-chain",
   "version": "0.1.0",
-  "description": "Evidence Chain for Jira: human-approved work orders, per-criterion evidence from AI coding agents, and a traceability matrix.",
+  "description": "Proof of Done for Jira: human-approved work orders, per-criterion evidence from AI coding agents, and a traceability matrix.",
   "main": "index.js",
   "private": true,
   "license": "UNLICENSED",

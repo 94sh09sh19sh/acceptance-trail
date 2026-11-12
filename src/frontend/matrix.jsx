@@ -70,12 +70,12 @@ function GettingStarted() {
     <Stack space="space.200">
       <EmptyState
         header="No work orders in this project yet"
-        description="Evidence Chain links AI agent evidence to each acceptance criterion and shows the gaps here."
+        description="Proof of Done links AI agent evidence to each acceptance criterion and shows the gaps here."
       />
       <List type="ordered">
-        <ListItem>Open an issue and use the Evidence Chain panel to draft a work order from its acceptance criteria.</ListItem>
+        <ListItem>Open an issue and use the Proof of Done panel to draft a work order from its acceptance criteria.</ListItem>
         <ListItem>Review the criteria and approve the work order. Only people can approve.</ListItem>
-        <ListItem>Connect your AI coding agent to the Evidence Chain MCP server. It reads the work order and reports evidence for each criterion, which you then accept or reject.</ListItem>
+        <ListItem>Connect your AI coding agent to the Proof of Done MCP server. It reads the work order and reports evidence for each criterion, which you then accept or reject.</ListItem>
       </List>
     </Stack>
   );

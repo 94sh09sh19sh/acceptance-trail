@@ -15,7 +15,7 @@ export function devToolsAllowed(environmentType, flag) {
   return environmentType === 'DEVELOPMENT' && flag === '1';
 }
 
-export const TAMPER_MARK = ' [edited outside Evidence Chain]';
+export const TAMPER_MARK = ' [edited outside Proof of Done]';
 
 // 改動最新的證據事件（沒有證據事件就改最新的任何事件），但不更新它的雜湊。
 export async function tamperLatestEvent(store, issueId) {
@@ -48,7 +48,7 @@ export async function countTamperedEvents(store, issueId) {
   return (await store.listByPrefix(devBackupPrefix(issueId))).length;
 }
 
-// 僅限開發用：清掉一個議題的全部 Evidence Chain 資料（草稿、各版工作單、鏈頭、事件、摘要、竄改備份），
+// 僅限開發用：清掉一個議題的全部 Proof of Done 資料（草稿、各版工作單、鏈頭、事件、摘要、竄改備份），
 // 讓拍示範影片前可以回到全新狀態。鏡射的 issue property 由呼叫端另外刪（要呼叫 Jira）。
 // 正式環境沒有任何呼叫這個函式的途徑：resolver 要先通過開發環境檢查與編輯權限。
 export async function resetIssueData(store, issueId, projectId) {

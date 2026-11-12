@@ -13,8 +13,8 @@ import { invoke } from '@forge/bridge';
 import { countLabel } from '../core/text.js';
 
 // 議題內容面板（議題頁面的右欄）。Jira 一定會顯示它的標題，
-// 所以使用者不用先加任何東西就找得到 Evidence Chain。這裡只是唯讀摘要；
-// 起草、核准與覆核都在完整的 Evidence Chain 議題面板裡進行。
+// 所以使用者不用先加任何東西就找得到 Proof of Done。這裡只是唯讀摘要；
+// 起草、核准與覆核都在完整的 Proof of Done 議題面板裡進行。
 
 const STATUS_LOZENGE = {
   'no-evidence': { appearance: 'default', text: 'No evidence' },
@@ -26,10 +26,10 @@ const STATUS_LOZENGE = {
 function OpenFullPanel({ canEdit }) {
   return canEdit ? (
     <Text size="small">
-      To draft, approve or review, open the full panel: select the app actions icon under the work item title, then Evidence Chain.
+      To draft, approve or review, open the Proof of Done panel in the main column of this work item. If it is not there, select the app actions icon under the work item title, then Proof of Done.
     </Text>
   ) : (
-    <Text size="small">People with permission to edit this work item can draft, approve and review in the full Evidence Chain panel.</Text>
+    <Text size="small">People with permission to edit this work item can draft, approve and review in the full Proof of Done panel.</Text>
   );
 }
 
@@ -69,7 +69,7 @@ function App() {
 
   if (error) {
     return (
-      <SectionMessage appearance="error" title="Could not load Evidence Chain" actions={[<SectionMessageAction key="retry" onClick={load}>Try again</SectionMessageAction>]}>
+      <SectionMessage appearance="error" title="Could not load Proof of Done" actions={[<SectionMessageAction key="retry" onClick={load}>Try again</SectionMessageAction>]}>
         <Text>{error}</Text>
       </SectionMessage>
     );

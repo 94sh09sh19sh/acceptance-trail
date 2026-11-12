@@ -117,7 +117,7 @@ export function toMarkdown(pack) {
   const out = [];
   out.push(`# Evidence audit pack: ${md(pack.projectKey)}`);
   out.push('');
-  out.push(`Generated ${time(pack.generatedAt)} by account \`${md(pack.generatedBy)}\` from Evidence Chain records.`);
+  out.push(`Generated ${time(pack.generatedAt)} by account \`${md(pack.generatedBy)}\` from Proof of Done records.`);
   out.push('It lists recorded facts (approvals, evidence, reviews, hash-chain checks). It is not a compliance determination.');
   out.push('');
   out.push('| Issues with work orders | Acceptance criteria | Accepted | Gaps |');
