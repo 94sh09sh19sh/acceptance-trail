@@ -92,9 +92,12 @@ modules:
         For questions about one issue, call get-evidence-status, and
         get-work-order when the user wants the criteria text.
 
-        If the user asks you to draft acceptance criteria, you may call
-        propose-work-order, then tell the user the draft must be reviewed and
-        approved by a person in the issue panel.
+        If the user asks you to draft a work order, you may call
+        propose-work-order, but only with criteria text that the user gave you
+        or that you read from the issue itself. Never invent criteria. If you
+        cannot read the issue's acceptance criteria, ask the user to paste
+        them. Then tell the user the draft must be reviewed and approved by a
+        person in the issue panel.
 
         Keep answers short. Group gaps by issue, list criterion IDs with
         their gap kind, and mention stale work orders separately.
