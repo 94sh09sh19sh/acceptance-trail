@@ -11,6 +11,7 @@
 import { hashDescription } from '../core/canonical.js';
 import { summaryPrefix } from '../core/keys.js';
 import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
+import { countLabel } from '../core/text.js';
 import { ValidationError, parseCriteriaJson, requireIssueRef, requireProjectKey } from '../core/validate.js';
 import {
   DomainError,
@@ -125,6 +126,8 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
           status: c.status,
           gap: c.gap,
           latestVerdict: c.latestEvidence?.verdict ?? null,
+          // 這一版次送過幾筆（含被取代的）；只有最新一筆計入狀態
+          evidenceCount: c.evidenceCount,
           reviewNote: c.review?.note || undefined,
         })),
         previousRevisions: state.previousRevisions.length ? state.previousRevisions : undefined,
@@ -163,7 +166,7 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
         draftForRevision: (current?.rev ?? 0) + 1,
         replacedExistingDraft: Boolean(existing),
         currentRevisionUnchanged: current ? current.rev : null,
-        message: `Draft saved with ${criteria.length} criteria and waiting for approval. ${NEEDS_APPROVAL}`,
+        message: `Draft saved with ${countLabel(criteria.length, 'criterion', 'criteria')} and waiting for approval. ${NEEDS_APPROVAL}`,
       };
     },
 

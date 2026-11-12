@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ForgeReconciler, {
   Inline,
+  LoadingButton,
   Lozenge,
   SectionMessage,
   SectionMessageAction,
@@ -9,6 +10,7 @@ import ForgeReconciler, {
   Text,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
+import { countLabel } from '../core/text.js';
 
 // 議題內容面板（議題頁面的右欄）。Jira 一定會顯示它的標題，
 // 所以使用者不用先加任何東西就找得到 Evidence Chain。這裡只是唯讀摘要；
@@ -31,18 +33,33 @@ function OpenFullPanel({ canEdit }) {
   );
 }
 
+// 展開內容的重新整理。收合時的狀態標籤由 Jira 決定何時重算，app 無法要求它更新。
+function RefreshButton({ refreshing, onRefresh }) {
+  return (
+    <Inline>
+      <LoadingButton spacing="compact" appearance="subtle" isLoading={refreshing} onClick={onRefresh}>
+        Refresh
+      </LoadingButton>
+    </Inline>
+  );
+}
+
 function App() {
   const [view, setView] = useState(null);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = async () => {
     setError(null);
+    setRefreshing(true);
     try {
       const result = await invoke('getPanel');
       if (!result?.ok) throw new Error(result?.error?.message ?? 'Request failed.');
       setView(result.data);
     } catch (e) {
       setError(e.message);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -69,6 +86,7 @@ function App() {
           A work order turns this work item's acceptance criteria into a checklist that AI coding agents report evidence against.
         </Text>
         <OpenFullPanel canEdit={canEdit} />
+        <RefreshButton refreshing={refreshing} onRefresh={load} />
       </Stack>
     );
   }
@@ -81,7 +99,7 @@ function App() {
           {chain.verified ? 'Chain verified' : 'Chain broken'}
         </Lozenge>
       </Inline>
-      <Text size="small">{`${state.accepted}/${state.total} accepted · ${state.gapCount} ${state.gapCount === 1 ? 'gap' : 'gaps'}`}</Text>
+      <Text size="small">{`${state.accepted}/${state.total} accepted · ${countLabel(state.gapCount, 'gap')}`}</Text>
       {stale ? <Lozenge appearance="moved">Description changed after approval</Lozenge> : null}
       {draft ? <Text size="small">{`A draft for revision ${workOrder.rev + 1} is waiting for approval.`}</Text> : null}
       <Stack space="space.050">
@@ -98,6 +116,7 @@ function App() {
         })}
       </Stack>
       <OpenFullPanel canEdit={canEdit} />
+      <RefreshButton refreshing={refreshing} onRefresh={load} />
     </Stack>
   );
 }

@@ -27,6 +27,7 @@ import ForgeReconciler, {
   xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
+import { countLabel, shortHash } from '../core/text.js';
 
 // 草稿列的固定代號（只在前端用，送出前會拿掉）
 let nextUid = 0;
@@ -52,6 +53,13 @@ const VERDICT_LOZENGE = {
   fail: { appearance: 'removed', text: 'fail' },
   'not-run': { appearance: 'moved', text: 'not run' },
 };
+
+const ROLE_LOZENGE = {
+  latest: { appearance: 'new', text: 'latest' },
+  superseded: { appearance: 'default', text: 'superseded' },
+};
+
+const REVIEW_TEXT = { accept: 'Accepted', reject: 'Rejected' };
 
 const formatTime = (iso) => (iso ? iso.replace('T', ' ').slice(0, 16) + ' UTC' : '');
 
@@ -128,11 +136,67 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
   );
 }
 
+// 同一條驗收條件在現行版次的全部證據（新到舊）。只有一筆時不顯示，避免畫面變雜。
+function EvidenceHistory({ history }) {
+  if (!history || history.length < 2) return null;
+  const head = {
+    cells: [
+      { key: 'event', content: 'Event', width: 24 },
+      { key: 'verdict', content: 'Verdict', width: 14 },
+      { key: 'submitted', content: 'Submitted', width: 28 },
+      { key: 'hash', content: 'Hash', width: 18 },
+      { key: 'review', content: 'Review', width: 16 },
+    ],
+  };
+  const rows = history.map((item) => {
+    const verdict = VERDICT_LOZENGE[item.verdict] ?? { appearance: 'default', text: item.verdict };
+    const role = ROLE_LOZENGE[item.role] ?? ROLE_LOZENGE.superseded;
+    return {
+      key: `ev-${item.seq}`,
+      cells: [
+        {
+          key: 'event',
+          content: (
+            <Inline space="space.050" alignBlock="center">
+              <Text>{`#${item.seq}`}</Text>
+              <Lozenge appearance={role.appearance}>{role.text}</Lozenge>
+            </Inline>
+          ),
+        },
+        { key: 'verdict', content: <Lozenge appearance={verdict.appearance}>{verdict.text}</Lozenge> },
+        {
+          key: 'submitted',
+          content: (
+            <Stack space="space.0">
+              <Text size="small">{formatTime(item.at)}</Text>
+              <Text size="small" color="color.text.subtle">
+                {item.agentName}
+              </Text>
+            </Stack>
+          ),
+        },
+        { key: 'hash', content: <Text size="small">{shortHash(item.hash)}</Text> },
+        { key: 'review', content: <Text size="small">{item.review ? REVIEW_TEXT[item.review.decision] ?? item.review.decision : 'Not reviewed'}</Text> },
+      ],
+    };
+  });
+  return (
+    <Stack space="space.050">
+      <Text weight="semibold">{`History (${countLabel(history.length, 'submission')} for this revision)`}</Text>
+      <Text size="small" color="color.text.subtle">
+        Only the latest evidence counts toward the status and can be reviewed. Superseded evidence stays in the hash chain.
+      </Text>
+      <DynamicTable head={head} rows={rows} />
+    </Stack>
+  );
+}
+
 function EvidenceModal({ criterion, onClose }) {
   const ev = criterion.latestEvidence;
   const verdict = VERDICT_LOZENGE[ev.verdict] ?? { appearance: 'default', text: ev.verdict };
+  const hasHistory = (criterion.history?.length ?? 0) > 1;
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} width={hasHistory ? 'large' : 'medium'}>
       <ModalHeader>
         <ModalTitle>{`${criterion.id} evidence`}</ModalTitle>
       </ModalHeader>
@@ -169,7 +233,8 @@ function EvidenceModal({ criterion, onClose }) {
           </Inline>
           <Inline space="space.100" alignBlock="center">
             <Text weight="semibold">Event</Text>
-            <Text>{`#${ev.seq} · hash ${ev.hash.slice(0, 12)}`}</Text>
+            <Text>{`#${ev.seq} · hash ${shortHash(ev.hash)}`}</Text>
+            {hasHistory ? <Lozenge appearance={ROLE_LOZENGE.latest.appearance}>{ROLE_LOZENGE.latest.text}</Lozenge> : null}
           </Inline>
           {criterion.review ? (
             <Inline space="space.100" alignBlock="center">
@@ -179,6 +244,7 @@ function EvidenceModal({ criterion, onClose }) {
               <Text>{criterion.review.note ? `“${criterion.review.note}”` : ''}</Text>
             </Inline>
           ) : null}
+          <EvidenceHistory history={criterion.history} />
         </Stack>
       </ModalBody>
       <ModalFooter>
@@ -268,6 +334,11 @@ function WorkOrderTable({ view, onDetails, onReview }) {
               <Lozenge appearance={verdict.appearance}>{verdict.text}</Lozenge>
               <Text size="small">{formatTime(ev.at)}</Text>
               <Text maxLines={2}>{ev.summary}</Text>
+              {criterion.evidenceCount > 1 ? (
+                <Text size="small" color="color.text.subtle">
+                  {`${countLabel(criterion.evidenceCount - 1, 'earlier submission')}, see Details`}
+                </Text>
+              ) : null}
               <Button appearance="subtle" spacing="compact" onClick={() => onDetails(criterion)}>
                 Details
               </Button>
@@ -308,11 +379,13 @@ function App() {
   const [details, setDetails] = useState(null);
   const [review, setReview] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [loadedAt, setLoadedAt] = useState(null);
 
   const load = async () => {
     setLoadError(null);
     try {
       setView(await call('getPanel'));
+      setLoadedAt(new Date().toISOString());
     } catch (error) {
       setLoadError(error.message);
     }
@@ -322,12 +395,14 @@ function App() {
     load();
   }, []);
 
-  // 每個按鈕動作都回傳更新後的整個面板資料
+  // 每個按鈕動作都回傳更新後的整個面板資料。
+  // Refresh 也走這裡（呼叫 getPanel），畫面保留舊資料，只讓按鈕顯示載入中；失敗時顯示錯誤訊息但不清掉畫面。
   const run = async (name, label, payload) => {
     setBusy(label);
     setActionError(null);
     try {
       setView(await call(name, payload));
+      setLoadedAt(new Date().toISOString());
       return true;
     } catch (error) {
       setActionError(error.message);
@@ -351,6 +426,15 @@ function App() {
 
   return (
     <Stack space="space.200">
+      {/* 代理經 MCP 送出證據後，按這裡重新取資料，不用重新載入整頁 */}
+      <Inline space="space.100" alignBlock="center" spread="space-between">
+        <Text size="small" color="color.text.subtle">
+          {loadedAt ? `Loaded ${formatTime(loadedAt)}` : ''}
+        </Text>
+        <LoadingButton spacing="compact" isLoading={busy === 'refresh'} isDisabled={Boolean(busy)} onClick={() => run('getPanel', 'refresh')}>
+          Refresh
+        </LoadingButton>
+      </Inline>
       {actionError ? (
         <SectionMessage appearance="error" title="That did not work">
           <Text>{actionError}</Text>
@@ -383,7 +467,7 @@ function App() {
           <Inline space="space.100" alignBlock="center" shouldWrap>
             <Text size="small">Approved by</Text>
             {workOrder.approvedBy !== 'unknown' ? <User accountId={workOrder.approvedBy} /> : <Text size="small">Unknown</Text>}
-            <Text size="small">{`on ${formatTime(workOrder.approvedAt)} · ${state.accepted}/${state.total} accepted · ${state.gapCount} gaps · ${chain.count} events`}</Text>
+            <Text size="small">{`on ${formatTime(workOrder.approvedAt)} · ${state.accepted}/${state.total} accepted · ${countLabel(state.gapCount, 'gap')} · ${countLabel(chain.count, 'event')}`}</Text>
           </Inline>
           {!chain.verified ? (
             <SectionMessage appearance="error" title="Chain broken">
@@ -403,7 +487,7 @@ function App() {
           {state.previousRevisions?.length ? (
             <Text size="small" color="color.text.subtle">
               {`Earlier revisions: ${state.previousRevisions
-                .map((p) => `revision ${p.rev} had ${p.evidenceCount} evidence ${p.evidenceCount === 1 ? 'record' : 'records'} (${p.accepted}/${p.total} accepted)`)
+                .map((p) => `revision ${p.rev} had ${countLabel(p.evidenceCount, 'evidence record')} (${p.accepted}/${p.total} accepted)`)
                 .join('; ')}. They stay in the chain but do not count toward revision ${workOrder.rev}, so agents report again for this revision.`}
             </Text>
           ) : null}
@@ -463,7 +547,7 @@ function App() {
           </Inline>
           {view.reset ? (
             <Text size="small" color="color.text.subtle">
-              {`Reset done: ${view.reset.removed} stored ${view.reset.removed === 1 ? 'record' : 'records'} removed${view.reset.propertyRemoved ? '.' : '. The issue property could not be removed; see the app log.'}`}
+              {`Reset done: ${countLabel(view.reset.removed, 'stored record')} removed${view.reset.propertyRemoved ? '.' : '. The issue property could not be removed; see the app log.'}`}
             </Text>
           ) : null}
         </Stack>

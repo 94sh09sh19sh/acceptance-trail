@@ -1,6 +1,9 @@
 // 擴充 2（規格第 10 節）：把稽核包匯出成 CSV 或 Markdown。
 // 只負責格式化，資料由 resolver 蒐集。人員一律顯示 Atlassian account ID，因為 app 不儲存姓名。
 
+import { EVIDENCE_ROLE } from './state.js';
+import { countLabel, shortHash } from './text.js';
+
 export const AUDIT_FORMATS = Object.freeze(['markdown', 'csv']);
 
 // 代理的長文字會截斷，讓單次匯出維持合理大小；事件雜湊仍指向鏈上的完整記錄。
@@ -39,7 +42,16 @@ export const CSV_COLUMNS = [
   'review_note',
   'reviewed_by_account_id',
   'reviewed_at',
+  'superseded_evidence',
 ];
+
+// 同一條驗收條件在現行版次被較新證據取代的舊證據（新到舊）。只計入狀態的是最新一筆，
+// 這裡列出來是為了讓「先失敗、修正後通過」的過程在稽核包裡看得到。
+const supersededOf = (criterion) => (criterion.history ?? []).filter((h) => h.role === EVIDENCE_ROLE.SUPERSEDED);
+
+// 一筆被取代證據的短描述：序號、判定、時間、雜湊前 12 碼，有覆核就加上結果。只用 app 產生的欄位，不含代理文字。
+const supersededText = (h, formatTime) =>
+  `#${h.seq} ${h.verdict} ${formatTime(h.at)} hash ${shortHash(h.hash)}${h.review ? ` (review: ${h.review.decision})` : ''}`;
 
 // 依 RFC 4180 加引號。試算表會當成公式的儲存格開頭加上單引號，因為代理提供的文字不可信。
 export function csvCell(value) {
@@ -80,6 +92,9 @@ export function toCsv(pack) {
         clip(review?.note),
         review?.reviewedBy ?? '',
         review?.at ?? '',
+        supersededOf(c)
+          .map((h) => supersededText(h, (iso) => iso ?? ''))
+          .join('; '),
       ];
       lines.push(row.map(csvCell).join(','));
     }
@@ -114,7 +129,7 @@ export function toMarkdown(pack) {
     out.push('');
     out.push(`- Work order revision ${issue.rev}, approved by account \`${md(issue.approvedBy)}\` on ${time(issue.approvedAt)}`);
     out.push(
-      `- Evidence chain: ${issue.chain.verified ? 'verified' : `BROKEN at event ${md(issue.chain.brokenAt)} (${md(issue.chain.reason)})`}, ${issue.chain.count} events${issue.chain.lastHash ? `, last hash ${issue.chain.lastHash.slice(0, 12)}` : ''}`,
+      `- Evidence chain: ${issue.chain.verified ? 'verified' : `BROKEN at event ${md(issue.chain.brokenAt)} (${md(issue.chain.reason)})`}, ${countLabel(issue.chain.count, 'event')}${issue.chain.lastHash ? `, last hash ${issue.chain.lastHash.slice(0, 12)}` : ''}`,
     );
     out.push(`- Description changed after approval (stale): ${issue.stale ? 'yes' : 'no'}`);
     if (issue.previousRevisions?.length) {
@@ -128,12 +143,21 @@ export function toMarkdown(pack) {
     for (const c of issue.criteria) {
       const ev = c.latestEvidence;
       const evidence = ev
-        ? `${ev.verdict} (${ev.evidenceType}) #${ev.seq}, hash ${ev.hash.slice(0, 12)}, ${md(ev.agentName)}, ${time(ev.at)}: ${md(clip(ev.summary, 200))}${ev.reference ? ` [ref: ${md(clip(ev.reference, 120))}]` : ''}`
+        ? `${ev.verdict} (${ev.evidenceType}) #${ev.seq}, hash ${shortHash(ev.hash)}, ${md(ev.agentName)}, ${time(ev.at)}: ${md(clip(ev.summary, 200))}${ev.reference ? ` [ref: ${md(clip(ev.reference, 120))}]` : ''}`
         : '-';
       const review = c.review
         ? `${c.review.decision} by \`${md(c.review.reviewedBy)}\`, ${time(c.review.at)}${c.review.note ? `: ${md(clip(c.review.note, 200))}` : ''}`
         : '-';
       out.push(`| ${md(c.id)} | ${md(c.text)} | ${md(c.evidenceType)} | ${md(c.status)} | ${md(c.gap)} | ${evidence} | ${review} |`);
+    }
+    const withSuperseded = issue.criteria.filter((c) => supersededOf(c).length > 0);
+    if (withSuperseded.length) {
+      out.push('');
+      out.push(`Superseded evidence in revision ${issue.rev} (kept in the chain, not counted; newest first):`);
+      out.push('');
+      for (const c of withSuperseded) {
+        out.push(`- ${md(c.id)}: ${supersededOf(c).map((h) => md(supersededText(h, time))).join('; ')}`);
+      }
     }
   }
   out.push('');

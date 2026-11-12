@@ -19,26 +19,30 @@ export const GAP = Object.freeze({
 
 export const GAP_KINDS = Object.freeze(Object.values(GAP));
 
+// 歷史清單裡每筆證據的身分（給介面與稽核包標示）
+export const EVIDENCE_ROLE = Object.freeze({ LATEST: 'latest', SUPERSEDED: 'superseded' });
+
 // 由事件推導每條驗收條件的狀態。只看現行版次的證據；同一條有多筆證據時看最新一筆，
 // 覆核也只看針對那一筆最新證據的最新一次覆核。
+// 另外保留每條在現行版次的全部證據（history，新到舊），只供顯示：被取代的證據不計入狀態，也不能再覆核。
 export function deriveState(events, workOrder, { stale = false } = {}) {
   if (!workOrder) return null;
-  const latestEvidence = new Map();
-  const evidenceCount = new Map();
+  const evidenceByCriterion = new Map();
   const reviewsBySeq = new Map();
 
   for (const event of events) {
     if (event.type === EVENT_TYPES.SUBMITTED && event.payload?.rev === workOrder.rev) {
       const id = event.payload.criterionId;
-      latestEvidence.set(id, event);
-      evidenceCount.set(id, (evidenceCount.get(id) ?? 0) + 1);
+      if (!evidenceByCriterion.has(id)) evidenceByCriterion.set(id, []);
+      evidenceByCriterion.get(id).push(event);
     } else if (event.type === EVENT_TYPES.REVIEWED) {
       reviewsBySeq.set(event.payload?.evidenceSeq, event);
     }
   }
 
   const criteria = workOrder.criteria.map((criterion) => {
-    const evidence = latestEvidence.get(criterion.id) ?? null;
+    const submitted = evidenceByCriterion.get(criterion.id) ?? [];
+    const evidence = submitted.at(-1) ?? null;
     const review = evidence ? reviewsBySeq.get(evidence.seq) ?? null : null;
     let status = STATUS.NO_EVIDENCE;
     if (evidence) {
@@ -56,9 +60,10 @@ export function deriveState(events, workOrder, { stale = false } = {}) {
       evidenceType: criterion.evidenceType,
       status,
       gap,
-      evidenceCount: evidenceCount.get(criterion.id) ?? 0,
+      evidenceCount: submitted.length,
       latestEvidence: evidence ? evidenceView(evidence) : null,
       review: review ? reviewView(review) : null,
+      history: historyView(submitted, reviewsBySeq),
     };
   });
 
@@ -109,6 +114,26 @@ function evidenceView(event) {
     at: event.at,
     hash: event.hash,
   };
+}
+
+// 一條驗收條件在現行版次的全部證據，新到舊。只放短欄位（不含摘要與輸出摘錄），
+// 讓面板資料與稽核包維持小；完整內容仍在鏈上，以序號與雜湊對照。
+function historyView(submitted, reviewsBySeq) {
+  return submitted
+    .map((event, index) => {
+      const review = reviewsBySeq.get(event.seq);
+      return {
+        seq: event.seq,
+        role: index === submitted.length - 1 ? EVIDENCE_ROLE.LATEST : EVIDENCE_ROLE.SUPERSEDED,
+        verdict: event.payload.verdict,
+        evidenceType: event.payload.evidenceType,
+        agentName: event.payload.agentName,
+        at: event.at,
+        hash: event.hash,
+        review: review ? { decision: review.payload.decision, reviewedBy: review.actor, at: review.at } : null,
+      };
+    })
+    .reverse();
 }
 
 function reviewView(event) {

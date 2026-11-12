@@ -17,6 +17,7 @@ import ForgeReconciler, {
   Link,
   List,
   ListItem,
+  LoadingButton,
   Lozenge,
   SectionMessage,
   SectionMessageAction,
@@ -27,6 +28,7 @@ import ForgeReconciler, {
   xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
+import { countLabel } from '../core/text.js';
 
 // 專案頁：追溯矩陣。每列一個有工作單的議題，可依缺口種類篩選；表格每頁 50 列。
 
@@ -128,7 +130,7 @@ function ExportModal({ onClose }) {
           {result ? (
             <Stack space="space.100">
               <Text size="small">
-                {`${result.issueCount} issues. Select all text in the box, copy it, and save it as ${result.fileName}. People appear as Atlassian account IDs; the app does not store names.`}
+                {`${countLabel(result.issueCount, 'issue')}. Select all text in the box, copy it, and save it as ${result.fileName}. People appear as Atlassian account IDs; the app does not store names.`}
               </Text>
               {/* 用 key 讓每種格式都換成全新的非受控輸入框；UI Kit 的輸入元件不可綁定 value */}
               <TextArea key={`${result.format}-${result.content.length}`} id="export-content" defaultValue={result.content} isReadOnly isMonospaced minimumRows={16} resize="vertical" />
@@ -154,15 +156,22 @@ function App() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState(ALL);
   const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadedAt, setLoadedAt] = useState(null);
 
+  // 首次載入與 Refresh 共用。重新整理時保留目前的表格與篩選，只讓按鈕顯示載入中。
   const load = async () => {
     setError(null);
+    setRefreshing(true);
     try {
       const result = await invoke('getMatrix');
       if (!result?.ok) throw new Error(result?.error?.message ?? 'Request failed.');
       setData(result.data);
+      setLoadedAt(new Date().toISOString());
     } catch (e) {
       setError(e.message);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -170,7 +179,19 @@ function App() {
     load();
   }, []);
 
-  if (error) {
+  // 已有資料時重新整理失敗：保留表格，在上方顯示錯誤
+  const refreshError = error && data ? (
+    <SectionMessage appearance="error" title="Could not refresh the traceability matrix">
+      <Text>{error}</Text>
+    </SectionMessage>
+  ) : null;
+  const refreshButton = (
+    <LoadingButton isLoading={refreshing} onClick={load}>
+      Refresh
+    </LoadingButton>
+  );
+
+  if (error && !data) {
     return (
       <SectionMessage appearance="error" title="Could not load the traceability matrix" actions={[<SectionMessageAction key="retry" onClick={load}>Try again</SectionMessageAction>]}>
         <Text>{error}</Text>
@@ -178,7 +199,15 @@ function App() {
     );
   }
   if (!data) return <Spinner label="Loading traceability matrix" />;
-  if (data.issues.length === 0) return <GettingStarted />;
+  if (data.issues.length === 0) {
+    return (
+      <Stack space="space.200">
+        {refreshError}
+        <GettingStarted />
+        <Inline>{refreshButton}</Inline>
+      </Stack>
+    );
+  }
 
   const rows = data.issues
     .filter((issue) => matches(issue, filter.value))
@@ -209,6 +238,7 @@ function App() {
 
   return (
     <Stack space="space.200">
+      {refreshError}
       <Inline space="space.150" shouldWrap>
         <Stat label="Issues with work orders" value={data.totals.issues} />
         <Stat label="Acceptance criteria" value={data.totals.criteria} />
@@ -220,9 +250,15 @@ function App() {
           <Label labelFor="gap-filter">Filter by gap</Label>
           <Select inputId="gap-filter" options={FILTER_OPTIONS} value={filter} onChange={(option) => setFilter(option ?? ALL)} />
         </Inline>
-        <Button iconBefore="download" onClick={() => setExporting(true)}>
-          Export audit pack
-        </Button>
+        <Inline space="space.100" alignBlock="center">
+          <Text size="small" color="color.text.subtle">
+            {loadedAt ? `Loaded ${loadedAt.replace('T', ' ').slice(0, 16)} UTC` : ''}
+          </Text>
+          {refreshButton}
+          <Button iconBefore="download" onClick={() => setExporting(true)}>
+            Export audit pack
+          </Button>
+        </Inline>
       </Inline>
       <DynamicTable
         caption={`Traceability matrix for ${data.projectKey}`}

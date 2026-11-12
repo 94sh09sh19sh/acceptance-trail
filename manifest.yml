@@ -138,7 +138,7 @@ modules:
       name: Get evidence status
       function: getEvidenceStatus
       actionVerb: GET
-      description: Returns each criterion's status (no-evidence, submitted, accepted, rejected), gap kind, latest verdict, reviewer note, and whether the evidence chain verifies. Use it to check progress after submitting evidence.
+      description: Returns each criterion's status (no-evidence, submitted, accepted, rejected), gap kind, latest verdict, evidenceCount (submissions this revision; only the latest counts), reviewer note, and whether the chain verifies. Use it after submitting evidence.
       inputs:
         issueKey:
           title: Issue key
