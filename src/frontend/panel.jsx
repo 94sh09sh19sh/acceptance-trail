@@ -215,6 +215,30 @@ function ReviewModal({ criterion, decision, busy, onConfirm, onClose }) {
   );
 }
 
+// 僅限開發用的重設確認框（用 UI Kit 的 Modal，不用瀏覽器原生的 confirm）
+function ResetModal({ issueKey, busy, onConfirm, onClose }) {
+  return (
+    <Modal onClose={onClose}>
+      <ModalHeader>
+        <ModalTitle>{`Reset Evidence Chain data for ${issueKey}?`}</ModalTitle>
+      </ModalHeader>
+      <ModalBody>
+        <Text>
+          This deletes the draft, every work order revision, all events and reviews, the matrix row, backups and the searchable issue property for this issue. It cannot be undone. Only development installs have this button.
+        </Text>
+      </ModalBody>
+      <ModalFooter>
+        <Button appearance="subtle" onClick={onClose}>
+          Cancel
+        </Button>
+        <LoadingButton appearance="danger" isLoading={busy} onClick={onConfirm}>
+          Reset
+        </LoadingButton>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
 function WorkOrderTable({ view, onDetails, onReview }) {
   const head = {
     cells: [
@@ -283,6 +307,7 @@ function App() {
   const [busy, setBusy] = useState(null);
   const [details, setDetails] = useState(null);
   const [review, setReview] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const load = async () => {
     setLoadError(null);
@@ -406,28 +431,56 @@ function App() {
       {draft && !canEdit ? <Text size="small">{`A draft for revision ${nextRev} is waiting for someone with edit permission to approve it.`}</Text> : null}
 
       {/* 只有後端回報開發用工具已啟用時才顯示；正式環境永遠不會啟用 */}
-      {view.devTools && workOrder ? (
+      {view.devTools ? (
         <Stack space="space.100">
           <Heading size="xsmall">Developer tools (development environment only)</Heading>
+          {workOrder ? (
+            <>
+              <Text size="small">
+                Simulates someone editing a stored event outside the app, so you can see the chain report it. These buttons do not exist in production.
+              </Text>
+              <Inline space="space.100">
+                <LoadingButton appearance="warning" isLoading={busy === 'tamper'} isDisabled={Boolean(busy)} onClick={() => run('devTamper', 'tamper')}>
+                  Edit latest event
+                </LoadingButton>
+                <LoadingButton
+                  isLoading={busy === 'restore'}
+                  isDisabled={Boolean(busy) || view.devTools.tampered === 0}
+                  onClick={() => run('devRestore', 'restore')}
+                >
+                  {`Restore edited events (${view.devTools.tampered})`}
+                </LoadingButton>
+              </Inline>
+            </>
+          ) : null}
           <Text size="small">
-            Simulates someone editing a stored event outside the app, so you can see the chain report it. These buttons do not exist in production.
+            Reset deletes this issue's draft, every work order revision, all events, the matrix row, backups and the searchable issue property, so you can start a demo from scratch. Production has no way to delete events.
           </Text>
           <Inline space="space.100">
-            <LoadingButton appearance="warning" isLoading={busy === 'tamper'} isDisabled={Boolean(busy)} onClick={() => run('devTamper', 'tamper')}>
-              Edit latest event
-            </LoadingButton>
-            <LoadingButton
-              isLoading={busy === 'restore'}
-              isDisabled={Boolean(busy) || view.devTools.tampered === 0}
-              onClick={() => run('devRestore', 'restore')}
-            >
-              {`Restore edited events (${view.devTools.tampered})`}
-            </LoadingButton>
+            <Button appearance="danger" isDisabled={Boolean(busy)} onClick={() => setConfirmReset(true)}>
+              {"Reset this issue's Evidence Chain data"}
+            </Button>
           </Inline>
+          {view.reset ? (
+            <Text size="small" color="color.text.subtle">
+              {`Reset done: ${view.reset.removed} stored ${view.reset.removed === 1 ? 'record' : 'records'} removed${view.reset.propertyRemoved ? '.' : '. The issue property could not be removed; see the app log.'}`}
+            </Text>
+          ) : null}
         </Stack>
       ) : null}
 
       <ModalTransition>
+        {confirmReset ? (
+          <ResetModal
+            issueKey={view.issueKey}
+            busy={busy === 'reset'}
+            onClose={() => setConfirmReset(false)}
+            onConfirm={async () => {
+              const done = await run('devReset', 'reset');
+              if (done) setConfirmReset(false);
+            }}
+          />
+        ) : null}
         {details ? <EvidenceModal criterion={details} onClose={() => setDetails(null)} /> : null}
         {review ? (
           <ReviewModal

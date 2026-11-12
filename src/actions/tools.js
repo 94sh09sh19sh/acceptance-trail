@@ -5,9 +5,12 @@
 //   getIssue(issueRef, caller)            -> { issueId, issueKey, title, projectId, projectKey, description } 或 null（不存在或沒有瀏覽權限）
 //   getProject(projectKey, caller)        -> { projectId, projectKey, name } 或 null
 //   filterVisibleIssueIds(ids, caller)    -> 呼叫者可瀏覽的 issueId 陣列
+//   canEditIssue(issueId, caller)         -> 呼叫者能否編輯該議題（寫入類工具用）
+//   setIssueProperty(issueId, key, value) -> 以呼叫者身分寫 issue property（摘要鏡射，失敗會拋出）
 
 import { hashDescription } from '../core/canonical.js';
 import { summaryPrefix } from '../core/keys.js';
+import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
 import { ValidationError, parseCriteriaJson, requireIssueRef, requireProjectKey } from '../core/validate.js';
 import {
   DomainError,
@@ -17,6 +20,9 @@ import {
   saveDraft,
   submitEvidence as coreSubmitEvidence,
 } from '../core/workorder.js';
+
+const NEEDS_EDIT = (issueKey, what) =>
+  `You can view ${issueKey} but do not have permission to edit it, so you cannot ${what}. Nothing was stored. Ask a person who can edit the issue, or use the read-only tools.`;
 
 const NEEDS_APPROVAL =
   'A person must draft and approve the work order in the Evidence Chain panel on the Jira issue. Agents cannot approve work orders.';
@@ -32,6 +38,13 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
     const ref = requireIssueRef(issueKey);
     const issue = await jira.getIssue(ref, caller);
     if (!issue) throw new DomainError('ISSUE_NOT_FOUND', `Issue ${ref} was not found, or you do not have permission to view it.`);
+    return issue;
+  }
+
+  // 寫入類工具（submit-evidence、propose-work-order）和議題面板的其他寫入一樣，要有該議題的編輯權限
+  async function requireEditableIssue(issueKey, caller, what) {
+    const issue = await requireIssue(issueKey, caller);
+    if (!(await jira.canEditIssue(issue.issueId, caller))) throw new DomainError('FORBIDDEN', NEEDS_EDIT(issue.issueKey, what));
     return issue;
   }
 
@@ -51,8 +64,13 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
     return summaries.filter((s) => visible.has(String(s.issueId))).sort((a, b) => a.issueKey.localeCompare(b.issueKey, 'en', { numeric: true }));
   }
 
+  // 重算摘要，並以呼叫者身分鏡射到 issue property（失敗只記 log，見 core/mirror.js）
   function refresh(issue) {
-    return refreshSummary(store, issue, { currentDescriptionHash: hashDescription(issue.description), at: now() });
+    return refreshSummary(store, issue, {
+      currentDescriptionHash: hashDescription(issue.description),
+      at: now(),
+      mirror: (value) => jira.setIssueProperty(issue.issueId, MIRROR_PROPERTY_KEY, value),
+    });
   }
 
   return {
@@ -117,7 +135,7 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
     },
 
     async submitEvidence(input, caller) {
-      const issue = await requireIssue(input.issueKey, caller);
+      const issue = await requireEditableIssue(input.issueKey, caller, 'submit evidence');
       const at = now();
       const { event, truncated } = await coreSubmitEvidence(store, issue.issueId, input, { actor: caller.accountId, at });
       await refresh(issue);
@@ -134,7 +152,7 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
     },
 
     async proposeWorkOrder({ issueKey, criteriaJson }, caller) {
-      const issue = await requireIssue(issueKey, caller);
+      const issue = await requireEditableIssue(issueKey, caller, 'propose a work order');
       const criteria = parseCriteriaJson(criteriaJson);
       const [current, existing] = await Promise.all([getCurrentWorkOrder(store, issue.issueId), getDraft(store, issue.issueId)]);
       await saveDraft(store, issue.issueId, { criteria, source: 'agent', at: now(), actor: caller.accountId });

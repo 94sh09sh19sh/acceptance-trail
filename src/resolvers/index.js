@@ -41,5 +41,6 @@ define('exportAudit', (identity, payload) => logic.exportAudit(identity, { forma
 // 僅限開發用的竄改工具：devToolsEnabled() 沒通過就拒絕（見 devtools-guard.js）
 define('devTamper', (identity) => logic.devTamper(identity));
 define('devRestore', (identity) => logic.devRestore(identity));
+define('devReset', (identity) => logic.devReset(identity));
 
 export const handler = resolver.getDefinitions();

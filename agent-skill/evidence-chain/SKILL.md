@@ -9,6 +9,8 @@ Evidence Chain is a Jira app. A person approves a **work order**: acceptance cri
 
 Your client may add an environment suffix to tool names, for example `get-work-order_development`. Match on the base name.
 
+The tools run with the Jira permissions of the account you connected with. Reading needs permission to view the issue; `submit-evidence` and `propose-work-order` also need permission to edit it.
+
 ## Hard rules
 - Only a person can approve a work order or accept or reject evidence, in the Jira issue panel. No tool does either. Never try to do it for them, work around it, or edit the issue to make your work match its criteria.
 - Never report a failure as a pass. A test that failed is `fail`. A criterion with no test, or tests you could not run, is `not-run`.
@@ -44,6 +46,7 @@ Failures come back as `{ok: false, error: {code, message}}` and nothing is store
 - `REVISION_MISMATCH`: a newer revision exists. Call `get-work-order` again, re-read the criteria, check that your work still matches them, rerun the tests, then submit with the current revision.
 - `UNKNOWN_CRITERION`: the message lists the valid IDs. Use one of those; do not invent IDs.
 - `INVALID_INPUT`: fix the parameter named in the message, for example `verdict` or `evidenceType`.
+- `FORBIDDEN`: you can view the issue but the Jira account you are connected with cannot edit it, so `submit-evidence` and `propose-work-order` are refused. Do not retry. Tell the person; someone with edit permission on the issue has to connect the agent, or grant that permission. Read-only tools such as `get-work-order` and `get-evidence-status` still work.
 - `ISSUE_NOT_FOUND`, `PROJECT_NOT_FOUND`: check the key. You may also lack permission to view it; ask the person.
 - `INTERNAL_ERROR`: retry once, then tell the person. Do not loop.
 

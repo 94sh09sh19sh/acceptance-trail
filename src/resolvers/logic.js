@@ -4,8 +4,9 @@
 import { extractCriteriaFromAdf } from '../core/adf.js';
 import { AUDIT_FORMATS, toCsv, toMarkdown } from '../core/audit.js';
 import { hashDescription } from '../core/canonical.js';
-import { countTamperedEvents, restoreTamperedEvents, tamperLatestEvent } from '../core/devtools.js';
+import { countTamperedEvents, resetIssueData, restoreTamperedEvents, tamperLatestEvent } from '../core/devtools.js';
 import { summaryPrefix } from '../core/keys.js';
+import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
 import { GAP_KINDS } from '../core/state.js';
 import {
   DomainError,
@@ -74,9 +75,14 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
     return { project, issues };
   }
 
-  async function panelView(issue, identity) {
+  async function panelView(issue, identity, extra = {}) {
     const currentDescriptionHash = hashDescription(issue.description);
-    const loaded = await refreshSummary(store, issue, { currentDescriptionHash, at: now() });
+    // 重算摘要時以目前使用者身分鏡射到 issue property；沒有編輯權限的檢視者寫不進去，只記 log
+    const loaded = await refreshSummary(store, issue, {
+      currentDescriptionHash,
+      at: now(),
+      mirror: (value) => jira.setIssueProperty(issue.issueId, MIRROR_PROPERTY_KEY, value),
+    });
     const canEdit = await jira.canEditIssue(issue.issueId, identity);
     const { workOrder, draft, chain, stale, state } = loaded;
     const devTools = canEdit && devToolsEnabled();
@@ -91,6 +97,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       chain,
       state,
       devTools: devTools ? { tampered: await countTamperedEvents(store, issue.issueId) } : null,
+      ...extra,
     };
   }
 
@@ -164,6 +171,22 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       const issue = await requireEditor(identity);
       await restoreTamperedEvents(store, issue.issueId);
       return panelView(issue, identity);
+    },
+
+    // 僅限開發用：清掉這個議題的全部 Evidence Chain 資料與鏡射的 issue property，回到全新狀態。
+    // 檢查順序同其他開發工具：先看開發環境，再看編輯權限，兩者沒過就什麼都不動。
+    async devReset(identity) {
+      requireDevTools();
+      const issue = await requireEditor(identity);
+      const removed = await resetIssueData(store, issue.issueId, issue.projectId);
+      let propertyRemoved = true;
+      try {
+        await jira.deleteIssueProperty(issue.issueId, MIRROR_PROPERTY_KEY);
+      } catch (error) {
+        propertyRemoved = false;
+        console.log(`[dev-reset] ${issue.issueId} property not removed ${String(error?.message ?? error).slice(0, 120)}`);
+      }
+      return panelView(issue, identity, { reset: { removed, propertyRemoved } });
     },
 
     async getMatrix(identity) {

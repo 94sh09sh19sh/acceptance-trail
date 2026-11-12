@@ -65,6 +65,20 @@ export function createJiraClient(api) {
     return { issues: new Set((grant?.issues ?? []).map(String)), projects: new Set((grant?.projects ?? []).map(String)) };
   }
 
+  // 用 asApp() 檢查某位使用者能否編輯某個議題，規則同 appCheckBrowse
+  async function appCheckEdit(accountId, issueId) {
+    if (!accountId || accountId === 'unknown') return false;
+    const response = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId, projectPermissions: [{ permissions: ['EDIT_ISSUES'], issues: [Number(issueId)] }] }),
+    });
+    if (!response.ok) return false;
+    const body = await readJson(response);
+    const grant = (body?.projectPermissions ?? []).find((p) => p.permission === 'EDIT_ISSUES');
+    return (grant?.issues ?? []).map(String).includes(String(issueId));
+  }
+
   return {
     async getIssue(issueRef, caller) {
       const result = await requestWithFallback(
@@ -131,16 +145,56 @@ export function createJiraClient(api) {
       return visible;
     },
 
-    // 議題面板的核准與覆核需要該議題的編輯權限（resolver 一定有使用者，所以只用 asUser）
-    async canEditIssue(issueId) {
-      const response = await api
-        .asUser()
-        .requestJira(route`/rest/api/3/mypermissions?issueId=${issueId}&permissions=EDIT_ISSUES`, {
-          headers: { Accept: 'application/json' },
-        });
-      if (!response.ok) return false;
-      const body = await readJson(response);
-      return Boolean(body?.permissions?.EDIT_ISSUES?.havePermission);
+    // 寫入（面板的起草、核准、覆核，以及 MCP 的 submit-evidence、propose-work-order）需要該議題的編輯權限。
+    // 和讀取一樣先用 asUser()；asUser 拋例外或回 401/403 時，才改用 asApp() 對呼叫者的 accountId 明確查 EDIT_ISSUES。
+    // 其他錯誤（404、5xx、空回應）一律視為沒有權限。accountId 不明時不嘗試退回，直接視為沒有權限。
+    async canEditIssue(issueId, caller) {
+      let response = null;
+      try {
+        response = await api
+          .asUser()
+          .requestJira(route`/rest/api/3/mypermissions?issueId=${issueId}&permissions=EDIT_ISSUES`, {
+            headers: { Accept: 'application/json' },
+          });
+      } catch {
+        response = null;
+      }
+      if (response?.ok) {
+        const body = await readJson(response);
+        return Boolean(body?.permissions?.EDIT_ISSUES?.havePermission);
+      }
+      if (response && response.status !== 401 && response.status !== 403) return false;
+      return appCheckEdit(caller?.accountId, issueId);
+    },
+
+    // 延伸功能 4：把摘要鏡射到 issue property，讓 JQL 查得到（manifest 的 jira:entityProperty 負責編入索引）。
+    // 有使用者的路徑一律 asUser()，Jira 會要求呼叫者有瀏覽與編輯權限；失敗就拋出，由呼叫端記 log 後繼續。
+    async setIssueProperty(issueId, propertyKey, value) {
+      const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueId}/properties/${propertyKey}`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      });
+      if (!response.ok) throw new Error(`Jira responded with status ${response.status}`);
+    },
+
+    // trigger 沒有使用者，只能用 app 身分寫（和 getIssueAsApp 同一個例外）
+    async setIssuePropertyAsApp(issueId, propertyKey, value) {
+      const response = await api.asApp().requestJira(route`/rest/api/3/issue/${issueId}/properties/${propertyKey}`, {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      });
+      if (!response.ok) throw new Error(`Jira responded with status ${response.status}`);
+    },
+
+    // 僅限開發用的重設會呼叫；本來就沒有這個 property（404）也算成功
+    async deleteIssueProperty(issueId, propertyKey) {
+      const response = await api.asUser().requestJira(route`/rest/api/3/issue/${issueId}/properties/${propertyKey}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok && response.status !== 404) throw new Error(`Jira responded with status ${response.status}`);
     },
   };
 }

@@ -33,12 +33,31 @@ export function createMemoryStore() {
   };
 }
 
-// 假的 Jira：issues 以 issueId 為鍵；hidden 裡的 issueId 對呼叫者不可見
-export function createFakeJira({ issues = [], projects = [], hidden = [], editors = true } = {}) {
+// 假的 Jira：issues 以 issueId 為鍵；hidden 裡的 issueId 對呼叫者不可見。
+// properties 記錄鏡射的 issue property（鍵為 "issueId/propertyKey"），propertyWrites 記錄每次寫入是用誰的身分；
+// failPropertyWrites 為 true 時寫入一律失敗，用來測鏡射失敗不影響主寫入。
+export function createFakeJira({ issues = [], projects = [], hidden = [], editors = true, failPropertyWrites = false } = {}) {
   const byId = new Map(issues.map((issue) => [issue.issueId, issue]));
   const hiddenSet = new Set(hidden.map(String));
-  return {
+  const properties = new Map();
+  const propertyWrites = [];
+  const writeProperty = (as) => async (issueId, key, value) => {
+    await tick();
+    propertyWrites.push(as);
+    if (fake.failPropertyWrites) throw new Error('Jira responded with status 503');
+    properties.set(`${issueId}/${key}`, structuredClone(value));
+  };
+  const fake = {
     issues: byId,
+    properties,
+    propertyWrites,
+    failPropertyWrites,
+    setIssueProperty: writeProperty('user'),
+    setIssuePropertyAsApp: writeProperty('app'),
+    async deleteIssueProperty(issueId, key) {
+      await tick();
+      properties.delete(`${issueId}/${key}`);
+    },
     async getIssue(ref) {
       const issue = byId.get(String(ref)) ?? [...byId.values()].find((i) => i.issueKey === ref);
       if (!issue || hiddenSet.has(issue.issueId)) return null;
@@ -60,6 +79,7 @@ export function createFakeJira({ issues = [], projects = [], hidden = [], editor
       return editors;
     },
   };
+  return fake;
 }
 
 export function sequentialClock(start = Date.UTC(2026, 10, 10, 0, 0, 0)) {

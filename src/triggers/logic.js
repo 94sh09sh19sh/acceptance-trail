@@ -4,6 +4,7 @@
 
 import { hashDescription } from '../core/canonical.js';
 import { summaryKey } from '../core/keys.js';
+import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
 import { getCurrentWorkOrder, refreshSummary } from '../core/workorder.js';
 
 // 會影響摘要列的變更：description（過期判斷）、summary（列標題）、
@@ -42,7 +43,12 @@ export function createIssueUpdatedHandler({ store, jira, now = () => new Date().
       }
     }
 
-    const loaded = await refreshSummary(store, issue, { currentDescriptionHash: hashDescription(issue.description), at: now() });
+    // 鏡射到 issue property 同樣沒有使用者可代表，用 app 身分寫（失敗只記 log）
+    const loaded = await refreshSummary(store, issue, {
+      currentDescriptionHash: hashDescription(issue.description),
+      at: now(),
+      mirror: (value) => jira.setIssuePropertyAsApp(issueId, MIRROR_PROPERTY_KEY, value),
+    });
     return { result: 'refreshed', stale: loaded.stale };
   };
 }

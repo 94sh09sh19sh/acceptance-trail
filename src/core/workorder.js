@@ -1,6 +1,7 @@
 import { canonicalJson } from './canonical.js';
 import { EVENT_TYPES, appendEvent, listEvents, verifyChain } from './chain.js';
 import { draftKey, headKey, revKey, summaryKey } from './keys.js';
+import { syncMirror } from './mirror.js';
 import { buildSummary, deriveState } from './state.js';
 import {
   EVIDENCE_TYPES,
@@ -206,12 +207,21 @@ export async function loadIssueState(store, issueId, { currentDescriptionHash } 
 }
 
 // 重算並寫入矩陣摘要。issue 需要 issueId、issueKey、title、projectId。
-export async function refreshSummary(store, issue, { currentDescriptionHash, at }) {
+// mirror（選用）：把摘要鏡射到 issue property 的寫入函式，見 core/mirror.js。
+// 鏡射失敗只記 log，摘要照常寫入，呼叫端的主寫入也不受影響。
+export async function refreshSummary(store, issue, { currentDescriptionHash, at, mirror }) {
   const loaded = await loadIssueState(store, issue.issueId, { currentDescriptionHash });
   if (loaded.state) {
+    const key = summaryKey(issue.projectId, issue.issueId);
     const summary = buildSummary(issue, loaded.state, at);
     summary.chainVerified = loaded.chain.verified;
-    await store.set(summaryKey(issue.projectId, issue.issueId), summary);
+    if (mirror) {
+      const previous = await store.get(key);
+      const synced = await syncMirror({ issueId: issue.issueId, summary, previous, write: mirror });
+      if (synced.fingerprint) summary.mirrorFingerprint = synced.fingerprint;
+      loaded.mirror = synced.result;
+    }
+    await store.set(key, summary);
   }
   return loaded;
 }

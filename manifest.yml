@@ -24,6 +24,32 @@ modules:
         function: resolver
       render: native
       title: Evidence Matrix
+  jira:entityProperty:
+    - key: evidence-summary-index
+      entityType: issue
+      propertyKey: evidence-chain-summary
+      values:
+        - path: rev
+          type: number
+          searchAlias: evidenceRevision
+        - path: total
+          type: number
+          searchAlias: evidenceCriteria
+        - path: accepted
+          type: number
+          searchAlias: evidenceAccepted
+        - path: gapCount
+          type: number
+          searchAlias: evidenceGaps
+        - path: gapKinds
+          type: string
+          searchAlias: evidenceGapKind
+        - path: stale
+          type: string
+          searchAlias: evidenceStale
+        - path: updatedAt
+          type: date
+          searchAlias: evidenceUpdated
   trigger:
     - key: issue-updated
       function: issueUpdated
@@ -123,7 +149,7 @@ modules:
       name: Submit evidence
       function: submitEvidence
       actionVerb: CREATE
-      description: Records evidence for one acceptance criterion; call once per criterion. workOrderRev and criterionId must match get-work-order or nothing is stored. Report failures as fail or not-run. Returns event seq and hash; long text is truncated.
+      description: Records evidence for one acceptance criterion; call once per criterion. Needs edit permission on the issue. workOrderRev and criterionId must match get-work-order or nothing is stored. Report failures as fail or not-run. Returns event seq and hash.
       inputs:
         issueKey:
           title: Issue key
@@ -175,8 +201,8 @@ modules:
       function: proposeWorkOrder
       actionVerb: CREATE
       description: >
-        Saves a draft work order for a Jira issue and waits for a person to
-        approve it in Jira. It never changes the approved revision; if one
+        Saves a draft work order for a person to approve in Jira; needs edit
+        permission on the issue. Never changes the approved revision: if one
         exists, the draft becomes the next revision. Use it when an issue has
         no usable acceptance criteria.
       inputs:

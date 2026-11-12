@@ -1,5 +1,5 @@
 import { EVENT_TYPES, listEvents } from './chain.js';
-import { eventKey } from './keys.js';
+import { eventKey, eventPrefix, headKey, summaryKey } from './keys.js';
 
 // 僅限開發用的輔助函式：模擬有人在 app 之外改動儲存的記錄，
 // 讓開發站台可以示範「Chain broken」狀態。
@@ -8,6 +8,12 @@ import { eventKey } from './keys.js';
 
 export const devBackupKey = (issueId, seq) => `dev:backup:${issueId}:${String(seq).padStart(6, '0')}`;
 export const devBackupPrefix = (issueId) => `dev:backup:${issueId}:`;
+
+// 開發用工具的環境條件（純函式，方便測試每一種組合）：
+// Forge runtime 回報 DEVELOPMENT，而且環境變數 EC_DEV_TOOLS 剛好是 "1"，兩者都成立才開放。
+export function devToolsAllowed(environmentType, flag) {
+  return environmentType === 'DEVELOPMENT' && flag === '1';
+}
 
 export const TAMPER_MARK = ' [edited outside Evidence Chain]';
 
@@ -40,4 +46,24 @@ export async function restoreTamperedEvents(store, issueId) {
 
 export async function countTamperedEvents(store, issueId) {
   return (await store.listByPrefix(devBackupPrefix(issueId))).length;
+}
+
+// 僅限開發用：清掉一個議題的全部 Evidence Chain 資料（草稿、各版工作單、鏈頭、事件、摘要、竄改備份），
+// 讓拍示範影片前可以回到全新狀態。鏡射的 issue property 由呼叫端另外刪（要呼叫 Jira）。
+// 正式環境沒有任何呼叫這個函式的途徑：resolver 要先通過開發環境檢查與編輯權限。
+export async function resetIssueData(store, issueId, projectId) {
+  const prefixed = await Promise.all([
+    store.listByPrefix(`wo:${issueId}:`),
+    store.listByPrefix(eventPrefix(issueId)),
+    store.listByPrefix(devBackupPrefix(issueId)),
+  ]);
+  const keys = [...prefixed.flat().map((row) => row.key), headKey(issueId)];
+  if (projectId) keys.push(summaryKey(projectId, issueId));
+  let removed = 0;
+  for (const key of keys) {
+    if ((await store.get(key)) === undefined) continue;
+    await store.delete(key);
+    removed += 1;
+  }
+  return removed;
 }
