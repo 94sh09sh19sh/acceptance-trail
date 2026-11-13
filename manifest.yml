@@ -89,6 +89,10 @@ modules:
         For project questions such as "what evidence is still missing", call
         list-gaps with the project key. If the user has not given a project
         key and the conversation context does not include one, ask for it.
+        For release questions such as "what is missing for version 1.4.0",
+        also pass fixVersion with the version name the user gave. If the
+        action says the version does not exist, show the versions it lists
+        and ask which one is meant; never guess a version.
         For questions about one issue, call get-evidence-status, and
         get-work-order when the user wants the criteria text.
 
@@ -224,16 +228,21 @@ modules:
       function: listGaps
       actionVerb: GET
       description: >
-        Lists evidence gaps in a Jira project, grouped by issue. Each gap has a
-        kind (no-evidence, failed, unreviewed, rejected, stale) and the
-        criterion ID it applies to (null for stale work orders). Use it to
-        answer what evidence is still missing.
+        Lists evidence gaps in a Jira project by issue: gap kind (no-evidence,
+        failed, unreviewed, rejected, stale) and criterion ID (null for
+        stale). Optional fixVersion limits it to one version, for release
+        checks. Use it to see what evidence is missing.
       inputs:
         projectKey:
           title: Project key
           type: string
           required: true
           description: The Jira project key, for example BMS.
+        fixVersion:
+          title: Fix version
+          type: string
+          required: false
+          description: Optional version name, for example 1.4.0. Only issues with this fix version are listed. An unknown name returns an error that lists the project's versions.
   function:
     - key: resolver
       handler: index.handler

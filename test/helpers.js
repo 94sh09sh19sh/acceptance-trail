@@ -36,7 +36,10 @@ export function createMemoryStore() {
 // 假的 Jira：issues 以 issueId 為鍵；hidden 裡的 issueId 對呼叫者不可見。
 // properties 記錄鏡射的 issue property（鍵為 "issueId/propertyKey"），propertyWrites 記錄每次寫入是用誰的身分；
 // failPropertyWrites 為 true 時寫入一律失敗，用來測鏡射失敗不影響主寫入。
-export function createFakeJira({ issues = [], projects = [], hidden = [], editors = true, failPropertyWrites = false } = {}) {
+// 修正版本：議題物件可帶 fixVersions（名稱陣列）；projectVersions 是專案的版本清單（{ name, released, archived }）；
+// failVersionLookup 為 true 時，讀修正版本與讀專案版本清單都會失敗，用來測降級與錯誤。
+// calls 記錄這兩個讀取各被呼叫幾次，用來確認沒給版本時不多打 Jira。
+export function createFakeJira({ issues = [], projects = [], hidden = [], editors = true, failPropertyWrites = false, projectVersions = [], failVersionLookup = false } = {}) {
   const byId = new Map(issues.map((issue) => [issue.issueId, issue]));
   const hiddenSet = new Set(hidden.map(String));
   const properties = new Map();
@@ -52,6 +55,25 @@ export function createFakeJira({ issues = [], projects = [], hidden = [], editor
     properties,
     propertyWrites,
     failPropertyWrites,
+    failVersionLookup,
+    calls: { getFixVersions: 0, getProjectVersions: 0 },
+    async getFixVersions(ids) {
+      await tick();
+      fake.calls.getFixVersions += 1;
+      if (fake.failVersionLookup) throw new Error('Jira responded with status 503');
+      const found = new Map();
+      for (const id of ids.map(String)) {
+        const issue = byId.get(id);
+        if (issue && !hiddenSet.has(id)) found.set(id, [...(issue.fixVersions ?? [])]);
+      }
+      return found;
+    },
+    async getProjectVersions() {
+      await tick();
+      fake.calls.getProjectVersions += 1;
+      if (fake.failVersionLookup) throw new Error('Jira responded with status 503');
+      return projectVersions.map((v) => ({ id: v.name, released: false, archived: false, ...v }));
+    },
     setIssueProperty: writeProperty('user'),
     setIssuePropertyAsApp: writeProperty('app'),
     async deleteIssueProperty(issueId, key) {

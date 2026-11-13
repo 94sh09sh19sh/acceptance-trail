@@ -52,4 +52,4 @@ export const proposeWorkOrder = wrap('propose-work-order', ['issueKey', 'criteri
   tools.proposeWorkOrder(input, caller),
 );
 
-export const listGaps = wrap('list-gaps', ['projectKey'], (input, caller) => tools.listGaps(input, caller));
+export const listGaps = wrap('list-gaps', ['projectKey', 'fixVersion'], (input, caller) => tools.listGaps(input, caller));

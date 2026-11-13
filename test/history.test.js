@@ -113,13 +113,15 @@ test('audit pack CSV: superseded evidence column, still one row per criterion, n
   const csv = (await ui.exportAudit(HUMAN, { format: 'csv' })).content;
   const lines = csv.trim().split('\r\n');
   assert.equal(lines[0], CSV_COLUMNS.join(','));
-  assert.equal(CSV_COLUMNS.at(-1), 'superseded_evidence');
+  // 延伸功能 5 在最後多加 fix_versions；superseded_evidence 與其他既有欄位的順序不變
+  assert.equal(CSV_COLUMNS.at(-2), 'superseded_evidence');
+  assert.equal(CSV_COLUMNS.at(-1), 'fix_versions');
   assert.equal(lines.length, 1 + 3);
   const ac1 = lines.find((l) => l.startsWith('BMS-1,') && l.includes(',AC-1,'));
   const iso = '\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z';
   assert.match(
     ac1,
-    new RegExp(`,#${second.seq} fail ${iso} hash ${second.hash.slice(0, 12)}; #${first.seq} fail ${iso} hash ${first.hash.slice(0, 12)} \\(review: reject\\)$`),
+    new RegExp(`,#${second.seq} fail ${iso} hash ${second.hash.slice(0, 12)}; #${first.seq} fail ${iso} hash ${first.hash.slice(0, 12)} \\(review: reject\\),$`),
   );
   // 被取代那筆的代理名稱只會出現在最新證據欄（這次最新的是 Test agent），不會進入 superseded 欄
   assert.equal(ac1.includes('=cmd|evil'), false);

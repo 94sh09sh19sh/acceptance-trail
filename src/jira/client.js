@@ -119,6 +119,47 @@ export function createJiraClient(api) {
       return project;
     },
 
+    // 延伸功能 5：專案的全部版本（不分已發版或封存），給「版本名稱存在嗎」的檢查與矩陣的篩選選單用。
+    // project 要帶 projectId 與 projectKey（來自 getProject）。和其他讀取一樣先 asUser；
+    // 改用 asApp 時要明確確認呼叫者看得到這個專案才回資料。
+    async getProjectVersions(project, caller) {
+      const result = await requestWithFallback(() => route`/rest/api/3/project/${project.projectKey}/versions`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (result.notFound || !Array.isArray(result.body)) throw new Error('Jira did not return the project versions');
+      if (result.via === 'app') {
+        const allowed = await appCheckBrowse(caller?.accountId, { projectIds: [project.projectId] });
+        if (!allowed.projects.has(String(project.projectId))) throw new Error('No permission to read the project versions');
+      }
+      return result.body
+        .filter((v) => v?.name)
+        .map((v) => ({ id: String(v.id), name: String(v.name), released: Boolean(v.released), archived: Boolean(v.archived) }));
+    },
+
+    // 延伸功能 5：一批議題的修正版本，回傳 Map(issueId -> 版本名稱陣列)。Jira 沒回傳的議題不放進 Map。
+    // 用 bulk fetch，一次最多 100 個議題；失敗就拋出（呼叫端決定要降級還是回錯誤）。
+    // 呼叫端傳進來的 issueIds 已經過 filterVisibleIssueIds；改用 asApp 時仍再查一次瀏覽權限，只留下呼叫者看得到的。
+    async getFixVersions(issueIds, caller) {
+      const found = new Map();
+      for (let i = 0; i < issueIds.length; i += 100) {
+        const chunk = issueIds.slice(i, i + 100).map(String);
+        const result = await requestWithFallback(() => route`/rest/api/3/issue/bulkfetch`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ issueIdsOrKeys: chunk, fields: ['fixVersions'] }),
+        });
+        if (result.notFound || !result.body) throw new Error('Jira did not return the fix versions');
+        const allowed = result.via === 'app' ? (await appCheckBrowse(caller?.accountId, { issueIds: chunk })).issues : null;
+        for (const issue of result.body.issues ?? []) {
+          const id = String(issue.id);
+          if (allowed && !allowed.has(id)) continue;
+          const names = Array.isArray(issue.fields?.fixVersions) ? issue.fields.fixVersions : [];
+          found.set(id, names.map((v) => v?.name).filter(Boolean));
+        }
+      }
+      return found;
+    },
+
     // 議題層級的安全性設定可能讓同專案的部分議題看不到，所以逐筆確認（一次最多 1000 筆）
     async filterVisibleIssueIds(issueIds, caller) {
       const visible = [];

@@ -5,7 +5,7 @@ Proof of Done is a Forge app for Jira. It ties evidence reported by AI coding ag
 1. A person drafts a **work order** from an issue's acceptance criteria and approves it.
 2. An external AI coding agent reads the approved work order over the Forge MCP server and submits **evidence** for each criterion: a pass, fail or not-run verdict, a summary, a commit or CI reference, and an output excerpt.
 3. A person **accepts or rejects** each piece of evidence in the issue panel.
-4. The **Evidence Matrix** project page shows every issue with a work order, its progress, and its gaps. It can export an **audit pack** as Markdown or CSV.
+4. The **Evidence Matrix** project page shows every issue with a work order, its progress, and its gaps. It can be filtered by **fix version** ("what is still missing for 1.4.0?") and can export an **audit pack** as Markdown or CSV, for one version or for everything.
 5. The **Evidence Auditor** Rovo agent answers questions like "what evidence is still missing in this project?".
 
 Every approval, submission and review is an append-only event. Each event stores the SHA-256 hash of the previous one, so the app can show whether the chain verifies.
@@ -46,7 +46,7 @@ For judges and first-time users on your own Jira site. The button names below ar
 
    To try real evidence instead, this repository's `demo/` folder holds a small C project with tests for these four criteria, and `agent-skill/evidence-chain/SKILL.md` teaches an agent the full loop (read the work order, implement, run the tests, report each criterion).
 6. **Review in Jira.** Select **Refresh** in the Proof of Done panel. Each criterion shows `Awaiting review` with the latest verdict. **Details** opens the evidence; **Accept** or **Reject** records your review. Ask the agent to submit AC-1 again, select **Refresh**, and open **Details** for AC-1: the **History** list shows both submissions, the newest marked `latest` and the earlier one `superseded`. Only the latest counts and can be reviewed.
-7. **See the gaps.** Open the **Evidence Matrix** project page (project navigation tabs, or **More**). It shows progress and gap kinds per work item; **Refresh** reloads it, and **Export audit pack** produces Markdown or CSV.
+7. **See the gaps.** Open the **Evidence Matrix** project page (project navigation tabs, or **More**). It shows progress, fix version and gap kinds per work item; **Refresh** reloads it, and **Export audit pack** produces Markdown or CSV. If the project has versions, give the work item a fix version, **Refresh**, and pick that version in **Fix version**: the table and the four counts then cover only that version, and the export follows the same filter.
 8. **Ask Rovo.** If your site has Rovo, open Rovo Chat, find **Evidence Auditor** in the agent list (**Browse agents**), and ask `What evidence is still missing in project DEMO?`.
 
 ## Install
@@ -116,7 +116,7 @@ A typical agent loop:
 | `get-evidence-status` | GET | MCP, Rovo | Status, gap kind and `evidenceCount` (submissions for the current revision) for each criterion of an issue, plus a summary of earlier revisions |
 | `submit-evidence` | CREATE | MCP | Evidence for one criterion. Needs permission to edit the issue. Rejected if the revision or criterion ID does not match. |
 | `propose-work-order` | CREATE | MCP, Rovo | Saves a draft for a person to approve. Needs permission to edit the issue. Never changes the approved revision. |
-| `list-gaps` | GET | MCP, Rovo | Gaps per issue in a project |
+| `list-gaps` | GET | MCP, Rovo | Gaps per issue in a project. Optional `fixVersion` (a version name such as `1.4.0`) lists only issues with that fix version; an unknown name is an error that lists the project's versions, not an empty list. |
 
 Long fields are truncated, and the response says which ones were cut. The limits are 2,000 characters for `summary`, 4,000 for `outputExcerpt`, and 500 for `reference`.
 
@@ -130,6 +130,8 @@ Failures return `{ ok: false, error: { code, message } }` and store nothing.
 | `REVISION_MISMATCH` | `workOrderRev` is not the current revision |
 | `UNKNOWN_CRITERION` | `criterionId` is not in the current revision; the message lists valid IDs |
 | `INVALID_INPUT` | A parameter is missing or not one of the allowed values |
+| `VERSION_NOT_FOUND` | `list-gaps` was given a `fixVersion` that is not a version of the project; the message lists the available versions |
+| `VERSIONS_UNAVAILABLE` | A fix-version filter was requested but Jira did not return the versions; nothing is filtered silently, retry once |
 | `FORBIDDEN` | The caller can view the issue but cannot edit it, so `submit-evidence` and `propose-work-order` are refused. Read-only tools still work. |
 | `ISSUE_NOT_FOUND`, `PROJECT_NOT_FOUND` | The key does not exist, or the caller cannot view it |
 | `INTERNAL_ERROR` | Unexpected failure; retry once |
@@ -178,18 +180,32 @@ project = BMS AND evidenceStale = "true"
 project = BMS AND evidenceGapKind = "failed"
 project = BMS AND evidenceCriteria > 0 AND evidenceGaps = 0
 issue.property[evidence-chain-summary].gapCount > 0
+
+project = BMS AND fixVersion = "1.4.0" AND evidenceGaps > 0
 ```
+
+The last example is the release question in JQL form: work items in version 1.4.0 that still have gaps. The Evidence Matrix filter and `list-gaps` with `fixVersion` answer the same question without JQL.
 
 The property is a copy for searching; the hash chain stays the source of truth. The app rewrites it whenever it recalculates an issue (approval, evidence, review, the issue-updated trigger, or opening the panel) and the counts have changed. If Jira refuses the write, for example because the caller cannot edit the issue, the main action still succeeds and the next recalculation tries again. Issues approved before this feature get the property the next time they are recalculated.
 
+## Release check by fix version
+
+Before a release, ask which acceptance criteria in a version still lack accepted evidence:
+
+- **Evidence Matrix:** each row shows the work item's fix versions. Pick a version in **Fix version** (the list is the project's versions, plus **All versions** and **No version**). The table and the four counts above it cover only the matching work items. A work item with several fix versions matches each of them.
+- **MCP and Rovo:** `list-gaps` with `projectKey` and `fixVersion`, for example `fixVersion` `1.4.0`. The answer lists only that version's work items with gaps, shows each one's fix versions, and echoes the version name as the project spells it (matching ignores case). A name that is not a version of the project returns `VERSION_NOT_FOUND` and the list of versions. Without `fixVersion` the tool answers as before. The Evidence Auditor agent uses the same action, so it answers release questions the same way.
+- **Audit pack:** when a version is selected, **Export audit pack** includes only that version and says so (see below).
+
+Fix versions are not stored by the app. They are read from Jira each time (as the caller, one bulk request per 100 work items), so a version change shows up as soon as you select **Refresh**, and a work item that Jira does not return shows `-` and matches no version filter. If Jira cannot return versions, the matrix still loads, hides the version filter and says so.
+
 ## Audit pack export
 
-On the Evidence Matrix page, **Export audit pack** builds a Markdown or CSV file for the issues you can see: approval, current status, latest evidence with its event number and hash, review decision, superseded evidence for the same revision (event number, verdict, time, first 12 characters of the hash, and review decision if any), and a fresh hash-chain check per issue. In CSV the superseded evidence is the last column, `superseded_evidence`, newest first. UI Kit apps cannot start a browser download, so the pack opens in a dialog; copy the text and save it under the suggested file name. People appear as Atlassian account IDs, because the app does not store names. Text from agents is cut to 500 characters in the export; the event hash points to the full record. CSV cells that a spreadsheet could run as a formula are prefixed with an apostrophe.
+On the Evidence Matrix page, **Export audit pack** builds a Markdown or CSV file for the issues you can see: approval, current status, latest evidence with its event number and hash, review decision, superseded evidence for the same revision (event number, verdict, time, first 12 characters of the hash, and review decision if any), and a fresh hash-chain check per issue. In CSV the superseded evidence is the second-to-last column, `superseded_evidence`, newest first; the last column, `fix_versions`, lists the work item's fix versions separated by semicolons. If a fix version is selected on the Evidence Matrix, the pack contains only the work items of that version (or only those without one, for **No version**), the counts cover only them, the Markdown header says `Filter: fix version "1.4.0"`, and the suggested file name carries it (for example `BMS-evidence-audit-fixversion-1.4.0-2026-11-13.md`), so the file can serve as the release evidence for that version. CSV has no header text, so there the filter is in the file name and in `fix_versions`. If the versions cannot be read or the version no longer exists, a filtered export fails instead of producing an unfiltered file. UI Kit apps cannot start a browser download, so the pack opens in a dialog; copy the text and save it under the suggested file name. People appear as Atlassian account IDs, because the app does not store names. Text from agents is cut to 500 characters in the export; the event hash points to the full record. CSV cells that a spreadsheet could run as a formula are prefixed with an apostrophe.
 
 ## Permissions
 
 - Viewing the panels needs permission to view the issue. Drafting, approving, reviewing and discarding drafts need permission to edit the issue; people without it see a read-only panel. Jira itself only shows the panel's add button to people who can edit the issue.
-- MCP and Rovo tools run as the calling user. An issue the caller cannot view is reported as not found.
+- MCP and Rovo tools run as the calling user. An issue the caller cannot view is reported as not found. Fix versions are read the same way: as the caller first, and as the app only after Jira refuses that call, in which case the app checks the caller's browse permission for the issues and the project before using the answer.
 - `submit-evidence` and `propose-work-order` write, so they need permission to edit the issue, the same as the panel. People with view permission only can still use the read-only tools (`get-work-order`, `get-evidence-status`, `list-open-work-orders`, `list-gaps`). The app asks Jira as the caller first; if Jira refuses that call, it checks the caller's account ID as the app instead, and an unknown caller counts as having no permission.
 - The issue property for JQL is written as the calling user, so Jira applies that user's edit permission.
 - The issue-updated trigger has no user, so it reads the issue and writes the issue property as the app. It only recalculates the stored matrix row and the property, and returns nothing to anyone.
@@ -199,7 +215,7 @@ On the Evidence Matrix page, **Export audit pack** builds a Markdown or CSV file
 | Scope | Why |
 |---|---|
 | `storage:app` | Stores work orders, events and matrix summaries in Forge key-value storage |
-| `read:jira-work` | Reads issue summary, description and project; checks browse and edit permissions; receives the issue-updated event that keeps stale markers current |
+| `read:jira-work` | Reads issue summary, description, fix versions and project, and the project's version list; checks browse and edit permissions; receives the issue-updated event that keeps stale markers current |
 | `write:jira-work` | Writes the `evidence-chain-summary` issue property that makes gaps searchable with JQL. The app changes nothing else in Jira. |
 
 The app declares no egress, no remote backends, no web triggers and no Forge LLM. All data stays in Atlassian, which keeps the app eligible for Runs on Atlassian.
@@ -223,7 +239,7 @@ forge lint
 
 | Path | Contents |
 |---|---|
-| `src/core/` | Pure logic: hash chain, state, evidence history and gap derivation, ADF parsing, validation, audit export, status label, count wording. No Forge imports. |
+| `src/core/` | Pure logic: hash chain, state, evidence history and gap derivation, ADF parsing, validation, audit export, status label, count wording, fix-version filtering (`versions.js`, shared with the project page) and the Jira version lookups (`version-lookup.js`). No Forge imports. |
 | `src/storage/kvs.js` | Forge KVS adapter |
 | `src/jira/client.js` | Jira REST calls. Tries `asUser()` first and falls back to `asApp()` with an explicit permission check. |
 | `src/actions/` | The six MCP and Rovo tools |

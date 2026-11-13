@@ -7,11 +7,15 @@
 //   filterVisibleIssueIds(ids, caller)    -> 呼叫者可瀏覽的 issueId 陣列
 //   canEditIssue(issueId, caller)         -> 呼叫者能否編輯該議題（寫入類工具用）
 //   setIssueProperty(issueId, key, value) -> 以呼叫者身分寫 issue property（摘要鏡射，失敗會拋出）
+//   getProjectVersions(project, caller)   -> [{ id, name, released, archived }]（list-gaps 的 fixVersion 檢查用，失敗會拋出）
+//   getFixVersions(issueIds, caller)      -> Map(issueId -> 版本名稱陣列)（失敗會拋出）
 
 import { hashDescription } from '../core/canonical.js';
 import { summaryPrefix } from '../core/keys.js';
 import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
 import { countLabel } from '../core/text.js';
+import { requireFixVersions, resolveVersionFilter } from '../core/version-lookup.js';
+import { ALL_VERSIONS, filterByVersion, optionalVersionName, versionFilter } from '../core/versions.js';
 import { ValidationError, parseCriteriaJson, requireIssueRef, requireProjectKey } from '../core/validate.js';
 import {
   DomainError,
@@ -170,13 +174,19 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
       };
     },
 
-    async listGaps({ projectKey }, caller) {
+    // fixVersion（選填）：只看含該修正版本的議題。版本名稱不存在時回 VERSION_NOT_FOUND 並列出可用版本，
+    // 不回空清單；讀不到版本時回 VERSIONS_UNAVAILABLE，不退回成不篩選。沒給 fixVersion 時行為與回傳都和以前相同。
+    async listGaps({ projectKey, fixVersion }, caller) {
+      const wanted = optionalVersionName(fixVersion);
       const project = await requireProject(projectKey, caller);
-      const summaries = await visibleSummaries(project, caller);
+      const filter = wanted ? await resolveVersionFilter(jira, project, versionFilter(wanted), caller) : ALL_VERSIONS;
+      let summaries = await visibleSummaries(project, caller);
+      if (wanted) summaries = filterByVersion(await requireFixVersions(jira, summaries, caller), filter);
       const withGaps = summaries.filter((s) => s.gapCount > 0);
       return {
         ok: true,
         projectKey: project.projectKey,
+        fixVersion: wanted ? filter.name : undefined,
         issuesWithWorkOrders: summaries.length,
         issuesWithGaps: withGaps.length,
         issues: withGaps.map((s) => ({
@@ -184,6 +194,7 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
           title: s.title,
           workOrderRev: s.rev,
           stale: s.stale,
+          fixVersions: wanted ? s.fixVersions : undefined,
           gaps: [
             ...(s.stale ? [{ kind: 'stale', criterionId: null }] : []),
             ...s.criteria.filter((c) => c.gap).map((c) => ({ kind: c.gap, criterionId: c.id })),

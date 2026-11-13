@@ -3,6 +3,7 @@
 
 import { EVIDENCE_ROLE } from './state.js';
 import { countLabel, shortHash } from './text.js';
+import { describeVersionFilter } from './versions.js';
 
 export const AUDIT_FORMATS = Object.freeze(['markdown', 'csv']);
 
@@ -43,6 +44,7 @@ export const CSV_COLUMNS = [
   'reviewed_by_account_id',
   'reviewed_at',
   'superseded_evidence',
+  'fix_versions',
 ];
 
 // 同一條驗收條件在現行版次被較新證據取代的舊證據（新到舊）。只計入狀態的是最新一筆，
@@ -95,6 +97,8 @@ export function toCsv(pack) {
         supersededOf(c)
           .map((h) => supersededText(h, (iso) => iso ?? ''))
           .join('; '),
+        // 議題的修正版本（多個用分號隔開）；讀不到時留空。CSV 沒有放標頭文字的地方，篩選條件看檔名與這一欄
+        (issue.fixVersions ?? []).join('; '),
       ];
       lines.push(row.map(csvCell).join(','));
     }
@@ -120,6 +124,12 @@ export function toMarkdown(pack) {
   out.push(`Generated ${time(pack.generatedAt)} by account \`${md(pack.generatedBy)}\` from Proof of Done records.`);
   out.push('It lists recorded facts (approvals, evidence, reviews, hash-chain checks). It is not a compliance determination.');
   out.push('');
+  // 依修正版本篩選時，標頭要寫明範圍，讓這份檔案可以當「某個版本的發版證據包」
+  if (pack.filter && pack.filter.kind !== 'all') {
+    const scope = pack.filter.kind === 'none' ? 'without a fix version' : 'with this fix version';
+    out.push(`**Filter: ${md(describeVersionFilter(pack.filter))}.** Only work items ${scope} are included, so the counts below cover that scope only.`);
+    out.push('');
+  }
   out.push('| Issues with work orders | Acceptance criteria | Accepted | Gaps |');
   out.push('|---|---|---|---|');
   out.push(`| ${pack.totals.issues} | ${pack.totals.criteria} | ${pack.totals.accepted} | ${pack.totals.gaps} |`);
@@ -132,6 +142,9 @@ export function toMarkdown(pack) {
       `- Evidence chain: ${issue.chain.verified ? 'verified' : `BROKEN at event ${md(issue.chain.brokenAt)} (${md(issue.chain.reason)})`}, ${countLabel(issue.chain.count, 'event')}${issue.chain.lastHash ? `, last hash ${issue.chain.lastHash.slice(0, 12)}` : ''}`,
     );
     out.push(`- Description changed after approval (stale): ${issue.stale ? 'yes' : 'no'}`);
+    if (Array.isArray(issue.fixVersions)) {
+      out.push(`- Fix versions: ${issue.fixVersions.length ? issue.fixVersions.map((v) => md(v)).join(', ') : 'none'}`);
+    }
     if (issue.previousRevisions?.length) {
       out.push(
         `- Earlier revisions (not counted): ${issue.previousRevisions.map((p) => `rev ${p.rev}: ${p.evidenceCount} evidence, ${p.accepted}/${p.total} accepted`).join('; ')}`,

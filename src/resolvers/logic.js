@@ -8,6 +8,8 @@ import { countTamperedEvents, resetIssueData, restoreTamperedEvents, tamperLates
 import { summaryPrefix } from '../core/keys.js';
 import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
 import { GAP_KINDS } from '../core/state.js';
+import { requireFixVersions, resolveVersionFilter, withFixVersions } from '../core/version-lookup.js';
+import { describeVersionFilter, filterByVersion, parseVersionFilter, totalsOf, versionFileTag } from '../core/versions.js';
 import {
   DomainError,
   approveDraft,
@@ -17,13 +19,6 @@ import {
   reviewEvidence,
   saveDraft,
 } from '../core/workorder.js';
-
-const totalsOf = (issues) => ({
-  issues: issues.length,
-  criteria: issues.reduce((n, s) => n + s.total, 0),
-  accepted: issues.reduce((n, s) => n + s.accepted, 0),
-  gaps: issues.reduce((n, s) => n + s.gapCount, 0),
-});
 
 // 介面送來的請求一律以 resolver context 決定是哪個議題與哪位使用者，不信任前端傳來的代號
 export function contextIdentity(context) {
@@ -189,21 +184,60 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       return panelView(issue, identity, { reset: { removed, propertyRemoved } });
     },
 
+    // 延伸功能 5：每列帶 fixVersions（名稱陣列，讀不到為 null），另帶專案的版本清單給篩選選單。
+    // 篩選與統計由前端用同一組純函式（core/versions.js）算，所以這裡的 totals 是全部議題的統計。
+    // 讀不到修正版本時矩陣照常回傳，fixVersionsAvailable 為 false，前端隱藏版本篩選並提示。
     async getMatrix(identity) {
       const { project, issues } = await visibleProjectSummaries(identity);
+      let rows = issues.map((issue) => ({ ...issue, fixVersions: null }));
+      let fixVersionsAvailable = true;
+      let versions = [];
+      if (issues.length > 0) {
+        try {
+          rows = await withFixVersions(jira, issues, identity);
+        } catch (error) {
+          fixVersionsAvailable = false;
+          console.log(`[resolver:getMatrix] ${project.projectKey} fix versions unavailable ${String(error?.message ?? error).slice(0, 120)}`);
+        }
+        if (fixVersionsAvailable) {
+          try {
+            versions = await jira.getProjectVersions(project, identity);
+          } catch {
+            versions = [];
+          }
+        }
+      }
       return {
         projectKey: project.projectKey,
         gapKinds: GAP_KINDS,
         totals: totalsOf(issues),
-        issues,
+        fixVersionsAvailable,
+        versions: mergeVersionOptions(versions, rows),
+        issues: rows,
       };
     },
 
     // 擴充 2：專案頁面的稽核包。過期判斷使用已儲存的摘要（由議題更新 trigger 保持最新），
     // 並且當場重新驗證每個議題的雜湊鏈。
-    async exportAudit(identity, { format }) {
+    // fixVersion（選填，{ kind, name }）：只匯出符合的議題，統計與標頭都只算這些議題，可當某版本的發版證據包。
+    // 篩選時讀不到版本或版本不存在就整個失敗，不會匯出一份看似完整、其實沒篩的檔案。
+    async exportAudit(identity, { format, fixVersion }) {
       if (!AUDIT_FORMATS.includes(format)) throw new DomainError('INVALID_FORMAT', `Format must be one of: ${AUDIT_FORMATS.join(', ')}.`);
-      const { project, issues } = await visibleProjectSummaries(identity);
+      const requested = parseVersionFilter(fixVersion);
+      const { project, issues: visible } = await visibleProjectSummaries(identity);
+      const filter = await resolveVersionFilter(jira, project, requested, identity);
+      // 沒有篩選時修正版本只用來在匯出內容標出每個議題的版本，讀不到就略過；篩選時一定要讀到
+      let withVersions;
+      if (filter.kind === 'all') {
+        try {
+          withVersions = await withFixVersions(jira, visible, identity);
+        } catch {
+          withVersions = visible.map((issue) => ({ ...issue, fixVersions: null }));
+        }
+      } else {
+        withVersions = await requireFixVersions(jira, visible, identity);
+      }
+      const issues = filterByVersion(withVersions, filter);
       const packIssues = [];
       for (const summary of issues) {
         const { workOrder, chain, events, state } = await loadIssueState(store, summary.issueId);
@@ -215,6 +249,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
           approvedBy: workOrder.approvedBy,
           approvedAt: workOrder.approvedAt,
           stale: Boolean(summary.stale),
+          fixVersions: summary.fixVersions,
           chain: { ...chain, lastHash: events.at(-1)?.hash ?? null },
           criteria: state.criteria,
           previousRevisions: state.previousRevisions,
@@ -224,13 +259,38 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
         projectKey: project.projectKey,
         generatedAt: now(),
         generatedBy: identity.accountId,
+        filter,
         totals: totalsOf(issues),
         issues: packIssues,
       };
       const date = pack.generatedAt.slice(0, 10);
+      const tag = versionFileTag(filter);
+      const base = `${project.projectKey}-evidence-audit${tag ? `-${tag}` : ''}-${date}`;
+      const filterText = filter.kind === 'all' ? null : describeVersionFilter(filter);
       return format === 'csv'
-        ? { format, fileName: `${project.projectKey}-evidence-audit-${date}.csv`, content: toCsv(pack), issueCount: packIssues.length }
-        : { format, fileName: `${project.projectKey}-evidence-audit-${date}.md`, content: toMarkdown(pack), issueCount: packIssues.length };
+        ? { format, fileName: `${base}.csv`, content: toCsv(pack), issueCount: packIssues.length, filter: filterText }
+        : { format, fileName: `${base}.md`, content: toMarkdown(pack), issueCount: packIssues.length, filter: filterText };
     },
   };
+}
+
+// 篩選選單的版本清單：專案的全部版本，再補上議題上有、但專案清單沒有的名稱（防萬一）
+function mergeVersionOptions(projectVersions, rows) {
+  const seen = new Set();
+  const options = [];
+  for (const v of projectVersions) {
+    const key = v.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    options.push({ name: v.name, released: Boolean(v.released), archived: Boolean(v.archived) });
+  }
+  for (const row of rows) {
+    for (const name of row.fixVersions ?? []) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      options.push({ name, released: false, archived: false });
+    }
+  }
+  return options;
 }

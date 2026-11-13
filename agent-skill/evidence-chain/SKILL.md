@@ -67,4 +67,5 @@ Finish with a short table: criterion, verdict, one line of evidence, remaining g
 
 ## Other tools
 - `list-open-work-orders` and `list-gaps` take a `projectKey` and show which issues still need evidence.
+- `list-gaps` also takes an optional `fixVersion`, a version name such as `1.4.0`, to answer "what is still missing for this release?". It lists only issues with that fix version. If the name is not a version of the project, the error code is `VERSION_NOT_FOUND` and the message lists the real versions: pick one of those or ask the person; never guess. `VERSIONS_UNAVAILABLE` means Jira did not return the versions, so retry once.
 - `propose-work-order` takes `issueKey` and `criteriaJson`, a JSON array string such as `[{"text":"...","evidenceType":"test"}]`. Use it only when an issue has no usable criteria and the person asked you to draft some. It saves a draft; it never approves one, so tell the person to review and approve it in Jira.

@@ -37,7 +37,7 @@ define('review', (identity, payload) =>
   logic.review(identity, { evidenceSeq: payload.evidenceSeq, decision: payload.decision, note: payload.note }),
 );
 define('getMatrix', (identity) => logic.getMatrix(identity));
-define('exportAudit', (identity, payload) => logic.exportAudit(identity, { format: payload.format }));
+define('exportAudit', (identity, payload) => logic.exportAudit(identity, { format: payload.format, fixVersion: payload.fixVersion }));
 // 僅限開發用的竄改工具：devToolsEnabled() 沒通過就拒絕（見 devtools-guard.js）
 define('devTamper', (identity) => logic.devTamper(identity));
 define('devRestore', (identity) => logic.devRestore(identity));
