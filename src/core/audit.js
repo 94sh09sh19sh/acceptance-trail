@@ -121,7 +121,7 @@ export function toMarkdown(pack) {
   const out = [];
   out.push(`# Evidence audit pack: ${md(pack.projectKey)}`);
   out.push('');
-  out.push(`Generated ${time(pack.generatedAt)} by account \`${md(pack.generatedBy)}\` from Proof of Done records.`);
+  out.push(`Generated ${time(pack.generatedAt)} by account \`${md(pack.generatedBy)}\` from Acceptance Trail records.`);
   out.push('It lists recorded facts (approvals, evidence, reviews, hash-chain checks). It is not a compliance determination.');
   out.push('');
   // 依修正版本篩選時，標頭要寫明範圍，讓這份檔案可以當「某個版本的發版證據包」

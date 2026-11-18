@@ -1,6 +1,6 @@
 # Demo firmware: BMS over-temperature protection
 
-A small C module for the Proof of Done demo. An external AI coding agent reads an approved work order from Jira, implements the requirement here, runs the tests, and reports evidence for each acceptance criterion.
+A small C module for the Acceptance Trail demo. An external AI coding agent reads an approved work order from Jira, implements the requirement here, runs the tests, and reports evidence for each acceptance criterion.
 
 **Demo only, not design guidance.** The module belongs to a fictional electric motorcycle battery management system. Every threshold, table and timing is illustrative. Real values come from the cell datasheet and the team's safety analysis. Nothing here claims compliance with any standard.
 

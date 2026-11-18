@@ -168,7 +168,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       return panelView(issue, identity);
     },
 
-    // 僅限開發用：清掉這個議題的全部 Proof of Done 資料與鏡射的 issue property，回到全新狀態。
+    // 僅限開發用：清掉這個議題的全部 Acceptance Trail 資料與鏡射的 issue property，回到全新狀態。
     // 檢查順序同其他開發工具：先看開發環境，再看編輯權限，兩者沒過就什麼都不動。
     async devReset(identity) {
       requireDevTools();

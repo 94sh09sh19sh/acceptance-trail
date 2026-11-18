@@ -2,7 +2,7 @@
 #define BMS_CONFIG_H
 
 /*
- * Demo firmware for the Proof of Done showcase: a fictional battery
+ * Demo firmware for the Acceptance Trail showcase: a fictional battery
  * management module for an electric motorcycle.
  * Demo only, not design guidance. Every number in this project is illustrative.
  *

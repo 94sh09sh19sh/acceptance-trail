@@ -1,6 +1,6 @@
-# Proof of Done for Jira
+# Acceptance Trail for Jira
 
-Proof of Done is a Forge app for Jira. It ties evidence reported by AI coding agents to individual acceptance criteria, and keeps all of it inside Atlassian.
+Acceptance Trail is a Forge app for Jira. It ties evidence reported by AI coding agents to individual acceptance criteria, and keeps all of it inside Atlassian.
 
 1. A person drafts a **work order** from an issue's acceptance criteria and approves it.
 2. An external AI coding agent reads the approved work order over the Forge MCP server and submits **evidence** for each criterion: a pass, fail or not-run verdict, a summary, a commit or CI reference, and an output excerpt.
@@ -33,19 +33,19 @@ For judges and first-time users on your own Jira site. The button names below ar
    4. If a temperature sensor reads open-circuit or short-circuit, the BMS reports a sensor fault, opens both charge and discharge paths, and stays in the safe state until the fault is cleared and the sensor passes a plausibility check.
    ```
 
-3. **Draft and approve.** On the work item, select the **app actions** icon under the title, then **Proof of Done**, to add the panel. Select **Draft work order**. The four criteria appear as AC-1 to AC-4; pick the evidence each one needs (`test`, `analysis`, `review` or `demo`) and select **Approve**. The panel now shows `Work order revision 1` and `Chain verified`. If the list was not recognised, the draft is empty: use **Add criterion**, then **Approve**.
-4. **Connect Claude Code** ([Connect Claude Code](#connect-claude-code)): `claude mcp add --transport http proof-of-done https://mcp.atlassian.com/forge/<appId>`, then `/mcp` to sign in to Atlassian and pick your site. The tool names carry an environment suffix; `/mcp` lists the exact names (for example `get-work-order_development` on a development install).
+3. **Draft and approve.** On the work item, select the **app actions** icon under the title, then **Acceptance Trail**, to add the panel. Select **Draft work order**. The four criteria appear as AC-1 to AC-4; pick the evidence each one needs (`test`, `analysis`, `review` or `demo`) and select **Approve**. The panel now shows `Work order revision 1` and `Chain verified`. If the list was not recognised, the draft is empty: use **Add criterion**, then **Approve**.
+4. **Connect Claude Code** ([Connect Claude Code](#connect-claude-code)): `claude mcp add --transport http acceptance-trail https://mcp.atlassian.com/forge/<appId>`, then `/mcp` to sign in to Atlassian and pick your site. The tool names carry an environment suffix; `/mcp` lists the exact names (for example `get-work-order_development` on a development install).
 5. **Let the agent report.** A prompt that needs no code:
 
    ```text
-   Use the Proof of Done MCP tools. Call get-work-order for DEMO-1 and list the criteria.
+   Use the Acceptance Trail MCP tools. Call get-work-order for DEMO-1 and list the criteria.
    Then call submit-evidence once per criterion with workOrderRev from get-work-order,
    verdict not-run, evidenceType test, agentName "Claude Code", and a summary saying this
    is a trial and no tests were run. Finally call get-evidence-status for DEMO-1.
    ```
 
    To try real evidence instead, this repository's `demo/` folder holds a small C project with tests for these four criteria, and `agent-skill/evidence-chain/SKILL.md` teaches an agent the full loop (read the work order, implement, run the tests, report each criterion).
-6. **Review in Jira.** Select **Refresh** in the Proof of Done panel. Each criterion shows `Awaiting review` with the latest verdict. **Details** opens the evidence; **Accept** or **Reject** records your review. Ask the agent to submit AC-1 again, select **Refresh**, and open **Details** for AC-1: the **History** list shows both submissions, the newest marked `latest` and the earlier one `superseded`. Only the latest counts and can be reviewed.
+6. **Review in Jira.** Select **Refresh** in the Acceptance Trail panel. Each criterion shows `Awaiting review` with the latest verdict. **Details** opens the evidence; **Accept** or **Reject** records your review. Ask the agent to submit AC-1 again, select **Refresh**, and open **Details** for AC-1: the **History** list shows both submissions, the newest marked `latest` and the earlier one `superseded`. Only the latest counts and can be reviewed.
 7. **See the gaps.** Open the **Evidence Matrix** project page (project navigation tabs, or **More**). It shows progress, fix version and gap kinds per work item; **Refresh** reloads it, and **Export audit pack** produces Markdown or CSV. If the project has versions, give the work item a fix version, **Refresh**, and pick that version in **Fix version**: the table and the four counts then cover only that version, and the export follows the same filter.
 8. **Ask Rovo.** If your site has Rovo, open Rovo Chat, find **Evidence Auditor** in the agent list (**Browse agents**), and ask `What evidence is still missing in project DEMO?`.
 
@@ -68,14 +68,14 @@ No settings page and no configuration are needed after installing.
 
 | What | Where | Needs a click first? |
 |---|---|---|
-| **Proof of Done status** (issue context panel) | Right-hand column of every work item, under the fields such as Details and Automation. The collapsed header shows a status such as `No work order`, `Draft`, `2 gaps`, `4/4 accepted` or `Chain broken`. Expand it for a per-criterion summary. | No. Jira shows it on every work item. |
-| **Proof of Done panel** (issue panel) | Main column, above Activity. This is where people draft, approve and review. Open it once per work item: select the **app actions** icon in the row of icons under the work item title, then **Proof of Done**. After that it stays on that work item for everyone. | Yes, once per work item |
+| **Acceptance Trail status** (issue context panel) | Right-hand column of every work item, under the fields such as Details and Automation. The collapsed header shows a status such as `No work order`, `Draft`, `2 gaps`, `4/4 accepted` or `Chain broken`. Expand it for a per-criterion summary. | No. Jira shows it on every work item. |
+| **Acceptance Trail panel** (issue panel) | Main column, above Activity. This is where people draft, approve and review. Open it once per work item: select the **app actions** icon in the row of icons under the work item title, then **Acceptance Trail**. After that it stays on that work item for everyone. | Yes, once per work item |
 | **Evidence Matrix** (project page) | In the space (project) navigation tabs. If it is not visible, open **More** and choose **Evidence Matrix**. | No |
 | **Evidence Auditor** (Rovo agent) | Rovo Chat, agent list | No |
 
 **One-time setup for Jira admins: show the panel on every work item.** Jira does not let apps turn this on themselves, which is why the always-visible status panel exists.
 
-1. Open any work item and add the Proof of Done panel once (app actions icon, then **Proof of Done**).
+1. Open any work item and add the Acceptance Trail panel once (app actions icon, then **Acceptance Trail**).
 2. In the panel header, open the **•••** menu and choose **Show for all work items**.
 3. The panel now appears on work items without the extra click. **Hide from all work items** in the same menu undoes it.
 
@@ -84,7 +84,7 @@ No settings page and no configuration are needed after installing.
 External MCP access is off by default. A site or organization admin turns it on:
 
 1. Go to **Atlassian Administration > Apps > Sites > (your site) > Connected apps**.
-2. Select **Proof of Done**, open the app details, and turn on the tools you want to expose.
+2. Select **Acceptance Trail**, open the app details, and turn on the tools you want to expose.
 
 The setting applies per site and per app installation.
 
@@ -93,7 +93,7 @@ The setting applies per site and per app installation.
 The MCP server URL is `https://mcp.atlassian.com/forge/<appId>`. `<appId>` is the UUID at the end of `app.id` in `manifest.yml`, the part after `ari:cloud:ecosystem::app/`.
 
 ```sh
-claude mcp add --transport http proof-of-done https://mcp.atlassian.com/forge/<appId>
+claude mcp add --transport http acceptance-trail https://mcp.atlassian.com/forge/<appId>
 ```
 
 Inside Claude Code, run `/mcp` to authenticate. A browser window opens for Atlassian consent; pick the site where the app is installed. Tools then run with your own Jira permissions. A newly added server is loaded when Claude Code starts, so restart the session if the tools do not appear.
@@ -225,7 +225,7 @@ The app declares no egress, no remote backends, no web triggers and no Forge LLM
 - **No separation of duties.** An external agent submits evidence with the Atlassian identity of the person who signed in through `/mcp`, so `Submitted by` shows that person, and the same account can then accept or reject the evidence. The app does not stop a submitter from reviewing their own submission. `agentName` is reported by the agent and is not verified.
 - **Developer tools are development-only.** Edit latest event, Restore edited events and Reset exist only on a development install with `EC_DEV_TOOLS=1` ([Developer tools](#developer-tools-development-environment-only)). Other installs cannot edit or delete events, so a demo work item cannot be reset there.
 - **Tool names carry an environment suffix** in Claude Code, for example `get-work-order_development`. Use the names that `/mcp` lists.
-- **The issue panel is added per work item.** Each work item needs the app actions icon, then **Proof of Done**, once, unless a Jira admin chooses **Show for all work items** in the panel's **•••** menu. The status panel in the right-hand column needs no click.
+- **The issue panel is added per work item.** Each work item needs the app actions icon, then **Acceptance Trail**, once, unless a Jira admin chooses **Show for all work items** in the panel's **•••** menu. The status panel in the right-hand column needs no click.
 - **The audit pack is text to copy, not a downloaded file.** UI Kit cannot start a browser download, so the pack opens in a dialog.
 - **Views do not update live.** After an agent submits evidence, select **Refresh** in the issue panel, the status panel or the Evidence Matrix, or reload the page. The collapsed status label in the right-hand column is recalculated only when Jira redraws it, for example when the work item is opened again; the app cannot ask Jira to update it.
 - **History covers the current revision only.** Evidence for earlier revisions stays in the chain, but the panel shows only a per-revision summary of it.
@@ -252,7 +252,7 @@ forge lint
 The issue panel on a **development** install has a Developer tools section for demos:
 
 - **Edit latest event** changes the newest stored event without fixing its hash, to show what happens when stored records are edited outside the app. **Restore edited events** puts the original back.
-- **Reset this issue's Proof of Done data** deletes the issue's draft, every work order revision, the chain head, all events and reviews, the matrix row, tamper backups and the `evidence-chain-summary` issue property, so a demo can start from scratch. It asks for confirmation first.
+- **Reset this issue's Acceptance Trail data** deletes the issue's draft, every work order revision, the chain head, all events and reviews, the matrix row, tamper backups and the `evidence-chain-summary` issue property, so a demo can start from scratch. It asks for confirmation first.
 
 All three need permission to edit the issue, and work only when the Forge runtime reports the development environment **and** the environment variable `EC_DEV_TOOLS` is `1`:
 

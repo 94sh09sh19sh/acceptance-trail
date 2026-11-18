@@ -286,7 +286,7 @@ function ResetModal({ issueKey, busy, onConfirm, onClose }) {
   return (
     <Modal onClose={onClose}>
       <ModalHeader>
-        <ModalTitle>{`Reset Proof of Done data for ${issueKey}?`}</ModalTitle>
+        <ModalTitle>{`Reset Acceptance Trail data for ${issueKey}?`}</ModalTitle>
       </ModalHeader>
       <ModalBody>
         <Text>
@@ -425,7 +425,7 @@ function App() {
 
   if (loadError) {
     return (
-      <SectionMessage appearance="error" title="Could not load Proof of Done" actions={[<SectionMessageAction key="retry" onClick={load}>Try again</SectionMessageAction>]}>
+      <SectionMessage appearance="error" title="Could not load Acceptance Trail" actions={[<SectionMessageAction key="retry" onClick={load}>Try again</SectionMessageAction>]}>
         <Text>{loadError}</Text>
       </SectionMessage>
     );
@@ -553,7 +553,7 @@ function App() {
           </Text>
           <Inline space="space.100">
             <Button appearance="danger" isDisabled={Boolean(busy)} onClick={() => setConfirmReset(true)}>
-              {"Reset this issue's Proof of Done data"}
+              {"Reset this issue's Acceptance Trail data"}
             </Button>
           </Inline>
           {view.reset ? (
