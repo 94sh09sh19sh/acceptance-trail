@@ -234,7 +234,7 @@ On the Evidence Matrix page, **Export audit pack** builds a Markdown or CSV file
 | `read:jira-work` | Reads issue summary, description, fix versions and project, and the project's version list; checks browse and edit permissions; receives the issue-updated event that keeps stale markers current |
 | `write:jira-work` | Writes the `evidence-chain-summary` issue property that makes gaps searchable with JQL. The app changes nothing else in Jira. |
 
-The app declares no egress, no remote backends, no web triggers and no Forge LLM. All data stays in Atlassian, which keeps the app eligible for Runs on Atlassian.
+The app declares no egress, no remote backends, no web triggers and no Forge LLM. All data stays in Atlassian, which keeps the app eligible for Runs on Atlassian. What the app stores, where, and who can see it is in [`PRIVACY.md`](PRIVACY.md).
 
 ## Known limitations
 
