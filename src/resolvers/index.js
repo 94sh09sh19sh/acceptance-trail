@@ -33,6 +33,18 @@ define('draftFromDescription', (identity) => logic.draftFromDescription(identity
 define('saveDraft', (identity, payload) => logic.saveDraft(identity, { criteria: payload.criteria }));
 define('discardDraft', (identity) => logic.discardDraft(identity));
 define('approve', (identity, payload) => logic.approve(identity, { criteria: payload.criteria }));
+// 手動記錄證據：只轉交表單欄位，來源與代理名稱由後端決定（見 logic.js 的 recordEvidence）
+define('recordEvidence', (identity, payload) =>
+  logic.recordEvidence(identity, {
+    criterionId: payload.criterionId,
+    workOrderRev: payload.workOrderRev,
+    verdict: payload.verdict,
+    evidenceType: payload.evidenceType,
+    summary: payload.summary,
+    reference: payload.reference,
+    outputExcerpt: payload.outputExcerpt,
+  }),
+);
 define('review', (identity, payload) =>
   logic.review(identity, { evidenceSeq: payload.evidenceSeq, decision: payload.decision, note: payload.note }),
 );

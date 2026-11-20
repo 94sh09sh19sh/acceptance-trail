@@ -26,10 +26,10 @@ const STATUS_LOZENGE = {
 function OpenFullPanel({ canEdit }) {
   return canEdit ? (
     <Text size="small">
-      To draft, approve or review, open the Acceptance Trail panel in the main column of this work item. If it is not there, select the app actions icon under the work item title, then Acceptance Trail.
+      To draft, approve, record evidence or review, open the Acceptance Trail panel in the main column of this work item. If it is not there, select the app actions icon under the work item title, then Acceptance Trail.
     </Text>
   ) : (
-    <Text size="small">People with permission to edit this work item can draft, approve and review in the full Acceptance Trail panel.</Text>
+    <Text size="small">People with permission to edit this work item can draft, approve, record evidence and review in the full Acceptance Trail panel.</Text>
   );
 }
 
@@ -83,7 +83,7 @@ function App() {
       <Stack space="space.100">
         <Text>{draft ? 'A draft for revision 1 is waiting for approval.' : 'No work order yet.'}</Text>
         <Text size="small">
-          A work order turns this work item's acceptance criteria into a checklist that AI coding agents report evidence against.
+          A work order turns this work item's acceptance criteria into a checklist. AI coding agents report evidence against it through MCP, and people can record evidence by hand in the full panel.
         </Text>
         <OpenFullPanel canEdit={canEdit} />
         <RefreshButton refreshing={refreshing} onRefresh={load} />

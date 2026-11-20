@@ -1,4 +1,5 @@
 // 議題面板與專案頁的後端邏輯。核准工作單與覆核證據只在這裡（人操作的介面）提供，不開放給代理。
+// 人手動記錄證據（recordEvidence）也只在這裡，MCP 工具與 Rovo 動作沒有這個入口。
 // 同樣不 import @forge/*，store 與 jira 由 index.js 注入。
 
 import { extractCriteriaFromAdf } from '../core/adf.js';
@@ -7,6 +8,7 @@ import { hashDescription } from '../core/canonical.js';
 import { countTamperedEvents, resetIssueData, restoreTamperedEvents, tamperLatestEvent } from '../core/devtools.js';
 import { summaryPrefix } from '../core/keys.js';
 import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
+import { EVIDENCE_SOURCE } from '../core/source.js';
 import { GAP_KINDS } from '../core/state.js';
 import { requireFixVersions, resolveVersionFilter, withFixVersions } from '../core/version-lookup.js';
 import { describeVersionFilter, filterByVersion, parseVersionFilter, totalsOf, versionFileTag } from '../core/versions.js';
@@ -18,6 +20,7 @@ import {
   refreshSummary,
   reviewEvidence,
   saveDraft,
+  submitEvidence,
 } from '../core/workorder.js';
 
 // 介面送來的請求一律以 resolver context 決定是哪個議題與哪位使用者，不信任前端傳來的代號
@@ -50,7 +53,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
   async function requireEditor(identity) {
     const issue = await requireIssue(identity);
     if (!(await jira.canEditIssue(issue.issueId, identity))) {
-      throw new DomainError('FORBIDDEN', 'You need permission to edit this issue to change its work order or review evidence.');
+      throw new DomainError('FORBIDDEN', 'You need permission to edit this issue to change its work order, record evidence or review evidence.');
     }
     return issue;
   }
@@ -142,6 +145,34 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
         descriptionHash: hashDescription(issue.description),
       });
       return panelView(issue, identity);
+    },
+
+    // 人在面板手動記錄一條驗收條件的證據（Record evidence）。和 MCP 的 submit-evidence 走同一個核心函式，
+    // 版次、條件代號、判定、證據類型的檢查與截斷規則相同；來源固定為 panel，代理名稱由核心固定寫入，
+    // 所以這裡只挑出表單欄位，前端送來的 agentName、source 一律不用。要該議題的編輯權限，和核准、覆核相同。
+    async recordEvidence(identity, input = {}) {
+      const issue = await requireEditor(identity);
+      const fields = {
+        criterionId: input.criterionId,
+        workOrderRev: input.workOrderRev,
+        verdict: input.verdict,
+        evidenceType: input.evidenceType,
+        summary: input.summary,
+        reference: input.reference,
+        outputExcerpt: input.outputExcerpt,
+      };
+      let result;
+      try {
+        result = await submitEvidence(store, issue.issueId, fields, { actor: identity.accountId, at: now(), source: EVIDENCE_SOURCE.PANEL });
+      } catch (error) {
+        // 核心的訊息是寫給代理看的（叫它重新呼叫 get-work-order），面板改成給人看的說法，錯誤代號不變
+        if (error instanceof DomainError && error.code === 'REVISION_MISMATCH') {
+          throw new DomainError('REVISION_MISMATCH', 'A newer work order revision was approved while this form was open. Nothing was stored. Select Refresh, then record the evidence again.');
+        }
+        throw error;
+      }
+      const { event, truncated } = result;
+      return panelView(issue, identity, { recorded: { criterionId: event.payload.criterionId, seq: event.seq, truncated } });
     },
 
     async review(identity, { evidenceSeq, decision, note }) {

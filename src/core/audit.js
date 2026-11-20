@@ -1,6 +1,7 @@
 // 擴充 2（規格第 10 節）：把稽核包匯出成 CSV 或 Markdown。
 // 只負責格式化，資料由 resolver 蒐集。人員一律顯示 Atlassian account ID，因為 app 不儲存姓名。
 
+import { isManualEntry, sourceLabel } from './source.js';
 import { EVIDENCE_ROLE } from './state.js';
 import { countLabel, shortHash } from './text.js';
 import { describeVersionFilter } from './versions.js';
@@ -36,6 +37,8 @@ export const CSV_COLUMNS = [
   'evidence_summary',
   'reference',
   'agent_name',
+  // mcp（代理經 MCP 回報）或 panel（人在議題面板手動記錄）；沒有證據時留空
+  'evidence_source',
   'submitted_by_account_id',
   'submitted_at',
   'evidence_hash',
@@ -51,9 +54,14 @@ export const CSV_COLUMNS = [
 // 這裡列出來是為了讓「先失敗、修正後通過」的過程在稽核包裡看得到。
 const supersededOf = (criterion) => (criterion.history ?? []).filter((h) => h.role === EVIDENCE_ROLE.SUPERSEDED);
 
-// 一筆被取代證據的短描述：序號、判定、時間、雜湊前 12 碼，有覆核就加上結果。只用 app 產生的欄位，不含代理文字。
+// 一筆被取代證據的短描述：序號、判定、時間、雜湊前 12 碼，手動記錄的加註 manual entry，有覆核就加上結果。
+// 只用 app 產生的欄位，不含代理文字。
 const supersededText = (h, formatTime) =>
-  `#${h.seq} ${h.verdict} ${formatTime(h.at)} hash ${shortHash(h.hash)}${h.review ? ` (review: ${h.review.decision})` : ''}`;
+  `#${h.seq} ${h.verdict} ${formatTime(h.at)} hash ${shortHash(h.hash)}${isManualEntry(h) ? ' (manual entry)' : ''}${h.review ? ` (review: ${h.review.decision})` : ''}`;
+
+// 稽核包裡有沒有手動記錄的證據（最新或被取代的都算）
+const hasManualEntries = (pack) =>
+  pack.issues.some((issue) => issue.criteria.some((c) => isManualEntry(c.latestEvidence) || (c.history ?? []).some(isManualEntry)));
 
 // 依 RFC 4180 加引號。試算表會當成公式的儲存格開頭加上單引號，因為代理提供的文字不可信。
 export function csvCell(value) {
@@ -87,6 +95,7 @@ export function toCsv(pack) {
         clip(ev?.summary),
         clip(ev?.reference),
         ev?.agentName ?? '',
+        ev?.source ?? '',
         ev?.submittedBy ?? '',
         ev?.at ?? '',
         ev?.hash ?? '',
@@ -124,6 +133,13 @@ export function toMarkdown(pack) {
   out.push(`Generated ${time(pack.generatedAt)} by account \`${md(pack.generatedBy)}\` from Acceptance Trail records.`);
   out.push('It lists recorded facts (approvals, evidence, reviews, hash-chain checks). It is not a compliance determination.');
   out.push('');
+  // 有手動記錄時說明兩種來源的差別（判斷依據是事件的 source 欄位，不是代理名稱）
+  if (hasManualEntries(pack)) {
+    out.push(
+      'Evidence sources: `MCP: <agent name>` was reported by an AI agent through MCP, signed in as the account shown after `by` (the agent name is reported by the agent and not verified). `Manual entry (Jira panel)` was recorded by hand in the issue panel by the account shown after `by`.',
+    );
+    out.push('');
+  }
   // 依修正版本篩選時，標頭要寫明範圍，讓這份檔案可以當「某個版本的發版證據包」
   if (pack.filter && pack.filter.kind !== 'all') {
     const scope = pack.filter.kind === 'none' ? 'without a fix version' : 'with this fix version';
@@ -156,7 +172,7 @@ export function toMarkdown(pack) {
     for (const c of issue.criteria) {
       const ev = c.latestEvidence;
       const evidence = ev
-        ? `${ev.verdict} (${ev.evidenceType}) #${ev.seq}, hash ${shortHash(ev.hash)}, ${md(ev.agentName)}, ${time(ev.at)}: ${md(clip(ev.summary, 200))}${ev.reference ? ` [ref: ${md(clip(ev.reference, 120))}]` : ''}`
+        ? `${ev.verdict} (${ev.evidenceType}) #${ev.seq}, hash ${shortHash(ev.hash)}, ${md(sourceLabel(ev))}, by \`${md(ev.submittedBy)}\`, ${time(ev.at)}: ${md(clip(ev.summary, 200))}${ev.reference ? ` [ref: ${md(clip(ev.reference, 120))}]` : ''}`
         : '-';
       const review = c.review
         ? `${c.review.decision} by \`${md(c.review.reviewedBy)}\`, ${time(c.review.at)}${c.review.note ? `: ${md(clip(c.review.note, 200))}` : ''}`

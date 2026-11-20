@@ -89,7 +89,7 @@ function GettingStarted() {
       <List type="ordered">
         <ListItem>Open an issue and use the Acceptance Trail panel to draft a work order from its acceptance criteria.</ListItem>
         <ListItem>Review the criteria and approve the work order. Only people can approve.</ListItem>
-        <ListItem>Connect your AI coding agent to the Acceptance Trail MCP server. It reads the work order and reports evidence for each criterion, which you then accept or reject.</ListItem>
+        <ListItem>Connect your AI coding agent to the Acceptance Trail MCP server. It reads the work order and reports evidence for each criterion, which you then accept or reject. You can also record evidence by hand with Record evidence in the issue panel.</ListItem>
       </List>
     </Stack>
   );

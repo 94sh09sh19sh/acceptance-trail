@@ -2,6 +2,7 @@ import { canonicalJson } from './canonical.js';
 import { EVENT_TYPES, appendEvent, listEvents, verifyChain } from './chain.js';
 import { draftKey, headKey, revKey, summaryKey } from './keys.js';
 import { syncMirror } from './mirror.js';
+import { EVIDENCE_SOURCE, EVIDENCE_SOURCES, MANUAL_AGENT_NAME } from './source.js';
 import { buildSummary, deriveState } from './state.js';
 import {
   EVIDENCE_TYPES,
@@ -92,8 +93,12 @@ export async function approveDraft(store, issueId, { actor, at, descriptionHash 
 
 // ---- 證據與覆核 ----
 
-// 代理送回一條驗收條件的證據。版次不符或條件代號不存在就拒絕，不寫入。
-export async function submitEvidence(store, issueId, input, { actor, at }) {
+// 送回一條驗收條件的證據。版次不符或條件代號不存在就拒絕，不寫入。
+// 代理經 MCP（source 為 mcp）與人在議題面板手動記錄（source 為 panel）都走這裡，驗證、截斷與寫入規則相同。
+// source 由呼叫端（MCP 工具或面板的 resolver）決定，不從 input 讀；panel 時代理名稱固定為 MANUAL_AGENT_NAME，忽略 input.agentName。
+export async function submitEvidence(store, issueId, input, { actor, at, source = EVIDENCE_SOURCE.MCP }) {
+  if (!EVIDENCE_SOURCES.includes(source)) throw new Error(`Unknown evidence source: ${source}`);
+  const manual = source === EVIDENCE_SOURCE.PANEL;
   const criterionId = requireString(input.criterionId, 'criterionId').toUpperCase();
   const workOrderRev = requirePositiveInteger(input.workOrderRev, 'workOrderRev');
   const verdict = requireOneOf(input.verdict, VERDICTS, 'verdict');
@@ -102,7 +107,7 @@ export async function submitEvidence(store, issueId, input, { actor, at }) {
   if (!summary.value) throw new ValidationError('summary is required.');
   const reference = truncate(input.reference, LIMITS.reference);
   const outputExcerpt = truncate(input.outputExcerpt, LIMITS.outputExcerpt);
-  const agentName = truncate(input.agentName, LIMITS.agentName);
+  const agentName = manual ? { value: MANUAL_AGENT_NAME, truncated: false } : truncate(input.agentName, LIMITS.agentName);
   if (!agentName.value) throw new ValidationError('agentName is required.');
 
   const workOrder = await getCurrentWorkOrder(store, issueId);
@@ -146,6 +151,7 @@ export async function submitEvidence(store, issueId, input, { actor, at }) {
       outputExcerpt: outputExcerpt.value,
       agentName: agentName.value,
       truncated,
+      source,
     },
   });
   return { event, workOrder, criterion, truncated };

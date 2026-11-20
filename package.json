@@ -4,7 +4,7 @@
   "description": "Acceptance Trail for Jira: human-approved work orders, per-criterion evidence from AI coding agents, and a traceability matrix.",
   "main": "index.js",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "scripts": {
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"test/**/*.test.js\""
   },

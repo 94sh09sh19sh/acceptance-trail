@@ -3,3 +3,7 @@ node_modules/
 *.local.*
 .forge/
 dist/
+.env.*
+!.env.example
+*.log
+.claude/

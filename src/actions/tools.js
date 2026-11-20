@@ -13,6 +13,7 @@
 import { hashDescription } from '../core/canonical.js';
 import { summaryPrefix } from '../core/keys.js';
 import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
+import { EVIDENCE_SOURCE } from '../core/source.js';
 import { countLabel } from '../core/text.js';
 import { requireFixVersions, resolveVersionFilter } from '../core/version-lookup.js';
 import { ALL_VERSIONS, filterByVersion, optionalVersionName, versionFilter } from '../core/versions.js';
@@ -130,6 +131,8 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
           status: c.status,
           gap: c.gap,
           latestVerdict: c.latestEvidence?.verdict ?? null,
+          // 最新一筆證據的來源：mcp（代理回報）或 panel（人在議題面板手動記錄）；沒有證據時為 null
+          latestSource: c.latestEvidence?.source ?? null,
           // 這一版次送過幾筆（含被取代的）；只有最新一筆計入狀態
           evidenceCount: c.evidenceCount,
           reviewNote: c.review?.note || undefined,
@@ -144,7 +147,7 @@ export function createTools({ store, jira, now = () => new Date().toISOString() 
     async submitEvidence(input, caller) {
       const issue = await requireEditableIssue(input.issueKey, caller, 'submit evidence');
       const at = now();
-      const { event, truncated } = await coreSubmitEvidence(store, issue.issueId, input, { actor: caller.accountId, at });
+      const { event, truncated } = await coreSubmitEvidence(store, issue.issueId, input, { actor: caller.accountId, at, source: EVIDENCE_SOURCE.MCP });
       await refresh(issue);
       return {
         ok: true,

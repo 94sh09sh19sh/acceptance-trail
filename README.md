@@ -3,21 +3,21 @@
 Acceptance Trail is a Forge app for Jira. It ties evidence reported by AI coding agents to individual acceptance criteria, and keeps all of it inside Atlassian.
 
 1. A person drafts a **work order** from an issue's acceptance criteria and approves it.
-2. An external AI coding agent reads the approved work order over the Forge MCP server and submits **evidence** for each criterion: a pass, fail or not-run verdict, a summary, a commit or CI reference, and an output excerpt.
-3. A person **accepts or rejects** each piece of evidence in the issue panel.
+2. An external AI coding agent reads the approved work order over the Forge MCP server and submits **evidence** for each criterion: a pass, fail or not-run verdict, a summary, a commit or CI reference, and an output excerpt. A person can also record evidence by hand in the issue panel (**Record evidence**), for example for a review or a demo, or to try the app without an agent. Those entries are marked `Manual entry`.
+3. A person **accepts or rejects** each piece of evidence in the issue panel, whichever way it arrived.
 4. The **Evidence Matrix** project page shows every issue with a work order, its progress, and its gaps. It can be filtered by **fix version** ("what is still missing for 1.4.0?") and can export an **audit pack** as Markdown or CSV, for one version or for everything.
 5. The **Evidence Auditor** Rovo agent answers questions like "what evidence is still missing in this project?".
 
 Every approval, submission and review is an append-only event. Each event stores the SHA-256 hash of the previous one, so the app can show whether the chain verifies.
 
-**Only people can approve work orders and review evidence.** No MCP tool or Rovo action does either. Agents can only read work orders, submit evidence, and propose draft work orders that a person still has to approve.
+**Only people can approve work orders and review evidence.** No MCP tool or Rovo action does either. Evidence arrives two ways: agents submit it through MCP, and people with edit permission can record it by hand in the issue panel. Either way it waits for the same human review. Agents can only read work orders, submit evidence, and propose draft work orders that a person still has to approve.
 
 ## Try it in five minutes
 
-For judges and first-time users on your own Jira site. The button names below are the ones the app shows.
+For a first run on your own Jira site. The button names below are the ones the app shows. Steps 1 to 5 need only Jira and no AI agent. Step 6 connects an AI coding agent through MCP, which is how agents use the app; it needs a site admin and an MCP client. Steps 7 and 8 work with or without step 6.
 
-1. **Install and enable MCP.** Install the app ([Install](#install)), then turn on its MCP tools in Atlassian Administration ([Enable the MCP server](#enable-the-mcp-server-for-external-agents)).
-2. **Create a work item.** In any project (the examples use the key `DEMO`), create a work item with this title and description. The four criteria must stay a numbered or bulleted list under the line `Acceptance criteria`; the Jira editor turns lines that start with `1. ` into a numbered list as you type.
+1. **Install.** Install the app ([Install](#install)).
+2. **Create a work item.** In any project (the examples use the key `DEMO`), create a work item with this title and description. The four criteria must stay a numbered or bulleted list under the line `Acceptance criteria`; the Jira editor turns lines that start with `1. ` into a numbered list as you type, or when you paste the whole block.
 
    Title: `BMS firmware: over-temperature protection for charge and discharge paths`
 
@@ -34,18 +34,23 @@ For judges and first-time users on your own Jira site. The button names below ar
    ```
 
 3. **Draft and approve.** On the work item, select the **app actions** icon under the title, then **Acceptance Trail**, to add the panel. Select **Draft work order**. The four criteria appear as AC-1 to AC-4; pick the evidence each one needs (`test`, `analysis`, `review` or `demo`) and select **Approve**. The panel now shows `Work order revision 1` and `Chain verified`. If the list was not recognised, the draft is empty: use **Add criterion**, then **Approve**.
-4. **Connect Claude Code** ([Connect Claude Code](#connect-claude-code)): `claude mcp add --transport http acceptance-trail https://mcp.atlassian.com/forge/<appId>`, then `/mcp` to sign in to Atlassian and pick your site. The tool names carry an environment suffix; `/mcp` lists the exact names (for example `get-work-order_development` on a development install).
-5. **Let the agent report.** A prompt that needs no code:
+4. **Record evidence by hand.** Each criterion now has **Record evidence**. Select it for AC-1, choose the verdict `pass`, type a summary such as `Trial entry recorded by hand`, and select **Record evidence**. Do the same for AC-2 with `fail`, AC-3 with `not-run` and AC-4 with `pass`. Each criterion shows `Awaiting review`, and the latest evidence carries the label `Manual entry`; fail and not-run count as gaps.
+5. **Review in Jira.** **Details** opens the evidence: **Source** says `Manual entry (Jira panel)` and **Recorded by** shows your account. **Accept** or **Reject** records your review. Then select **Record evidence** for AC-2 again with `pass` and open **Details** for AC-2: the **History** list shows both entries, the newest marked `latest` and the earlier one `superseded`. Only the latest counts and can be reviewed.
+6. **Let an AI agent report through MCP.** This is the path for AI coding agents. It needs a site admin and an MCP client with remote HTTP and OAuth support (we tested Claude Code). If you cannot do this now, go on to step 7.
+   1. Turn on the app's MCP tools in Atlassian Administration ([Enable the MCP server](#enable-the-mcp-server-for-external-agents)).
+   2. Connect Claude Code ([Connect Claude Code](#connect-claude-code)): `claude mcp add --transport http acceptance-trail https://mcp.atlassian.com/forge/<appId>`, then `/mcp` to sign in to Atlassian and pick your site. The tool names carry an environment suffix; `/mcp` lists the exact names (for example `get-work-order_development` on a development install).
+   3. Give the agent a prompt that needs no code:
 
-   ```text
-   Use the Acceptance Trail MCP tools. Call get-work-order for DEMO-1 and list the criteria.
-   Then call submit-evidence once per criterion with workOrderRev from get-work-order,
-   verdict not-run, evidenceType test, agentName "Claude Code", and a summary saying this
-   is a trial and no tests were run. Finally call get-evidence-status for DEMO-1.
-   ```
+      ```text
+      Use the Acceptance Trail MCP tools. Call get-work-order for DEMO-1 and list the criteria.
+      Then call submit-evidence once per criterion with workOrderRev from get-work-order,
+      verdict not-run, evidenceType test, agentName "Claude Code", and a summary saying this
+      is a trial and no tests were run. Finally call get-evidence-status for DEMO-1.
+      ```
+
+   4. Select **Refresh** in the Acceptance Trail panel. The agent's submissions are now the latest evidence for each criterion and wait for review; **Details** shows **Source** `AI agent through MCP` and the agent name, and your manual entries move down the **History** list as `superseded`. Review them as in step 5.
 
    To try real evidence instead, this repository's `demo/` folder holds a small C project with tests for these four criteria, and `agent-skill/evidence-chain/SKILL.md` teaches an agent the full loop (read the work order, implement, run the tests, report each criterion).
-6. **Review in Jira.** Select **Refresh** in the Acceptance Trail panel. Each criterion shows `Awaiting review` with the latest verdict. **Details** opens the evidence; **Accept** or **Reject** records your review. Ask the agent to submit AC-1 again, select **Refresh**, and open **Details** for AC-1: the **History** list shows both submissions, the newest marked `latest` and the earlier one `superseded`. Only the latest counts and can be reviewed.
 7. **See the gaps.** Open the **Evidence Matrix** project page (project navigation tabs, or **More**). It shows progress, fix version and gap kinds per work item; **Refresh** reloads it, and **Export audit pack** produces Markdown or CSV. If the project has versions, give the work item a fix version, **Refresh**, and pick that version in **Fix version**: the table and the four counts then cover only that version, and the export follows the same filter.
 8. **Ask Rovo.** If your site has Rovo, open Rovo Chat, find **Evidence Auditor** in the agent list (**Browse agents**), and ask `What evidence is still missing in project DEMO?`.
 
@@ -53,11 +58,12 @@ For judges and first-time users on your own Jira site. The button names below ar
 
 You need a Jira Cloud site where you are a site admin (admin rights are only needed for the MCP setting below).
 
-- **From the installation link:** open the link provided with the submission, pick your site, and confirm. Jira lists the scopes from the [Scopes](#scopes) table.
-- **From source (development environment):**
+- **From an installation link:** if you have an installation link for Acceptance Trail, open it, pick your site, and confirm. Jira lists the scopes from the [Scopes](#scopes) table.
+- **From source (development environment):** the `app.id` in `manifest.yml` belongs to the original app, so register your own copy first. `forge register` creates an app under your Atlassian developer account and writes its ID into `manifest.yml`; the MCP server URL then uses that ID ([Connect Claude Code](#connect-claude-code)).
 
   ```sh
   npm install
+  forge register acceptance-trail
   forge deploy --non-interactive -e development
   forge install --non-interactive --site <your-site>.atlassian.net --product jira -e development
   ```
@@ -69,7 +75,7 @@ No settings page and no configuration are needed after installing.
 | What | Where | Needs a click first? |
 |---|---|---|
 | **Acceptance Trail status** (issue context panel) | Right-hand column of every work item, under the fields such as Details and Automation. The collapsed header shows a status such as `No work order`, `Draft`, `2 gaps`, `4/4 accepted` or `Chain broken`. Expand it for a per-criterion summary. | No. Jira shows it on every work item. |
-| **Acceptance Trail panel** (issue panel) | Main column, above Activity. This is where people draft, approve and review. Open it once per work item: select the **app actions** icon in the row of icons under the work item title, then **Acceptance Trail**. After that it stays on that work item for everyone. | Yes, once per work item |
+| **Acceptance Trail panel** (issue panel) | Main column, above Activity. This is where people draft, approve, record evidence by hand and review. Open it once per work item: select the **app actions** icon in the row of icons under the work item title, then **Acceptance Trail**. After that it stays on that work item for everyone. | Yes, once per work item |
 | **Evidence Matrix** (project page) | In the space (project) navigation tabs. If it is not visible, open **More** and choose **Evidence Matrix**. | No |
 | **Evidence Auditor** (Rovo agent) | Rovo Chat, agent list | No |
 
@@ -113,12 +119,22 @@ A typical agent loop:
 |---|---|---|---|
 | `get-work-order` | GET | MCP, Rovo | Approved criteria and revision. If the work order is not approved, returns only the status. |
 | `list-open-work-orders` | GET | MCP, Rovo | Approved work orders in a project that still have gaps |
-| `get-evidence-status` | GET | MCP, Rovo | Status, gap kind and `evidenceCount` (submissions for the current revision) for each criterion of an issue, plus a summary of earlier revisions |
+| `get-evidence-status` | GET | MCP, Rovo | Status, gap kind, `evidenceCount` (submissions for the current revision) and `latestSource` (`mcp` or `panel`, see below) for each criterion of an issue, plus a summary of earlier revisions |
 | `submit-evidence` | CREATE | MCP | Evidence for one criterion. Needs permission to edit the issue. Rejected if the revision or criterion ID does not match. |
 | `propose-work-order` | CREATE | MCP, Rovo | Saves a draft for a person to approve. Needs permission to edit the issue. Never changes the approved revision. |
 | `list-gaps` | GET | MCP, Rovo | Gaps per issue in a project. Optional `fixVersion` (a version name such as `1.4.0`) lists only issues with that fix version; an unknown name is an error that lists the project's versions, not an empty list. |
 
 Long fields are truncated, and the response says which ones were cut. The limits are 2,000 characters for `summary`, 4,000 for `outputExcerpt`, and 500 for `reference`.
+
+### Evidence recorded by hand
+
+**Record evidence** in the issue panel is not a tool: agents and the Evidence Auditor cannot call it. It takes the same fields as `submit-evidence` except `agentName` (verdict, evidence type, summary, and optional reference and output excerpt) and goes through the same checks: current revision, existing criterion ID, allowed values, the same length limits and truncation. It needs permission to edit the issue, like approving and reviewing.
+
+The app marks where each piece of evidence came from, and the person filling in the form cannot change it:
+
+- Each evidence event stores `source`: `mcp` for `submit-evidence`, `panel` for **Record evidence**. Events written before this field existed have no `source` and count as `mcp`, because MCP was the only way in at the time. The field is part of the hashed event, so changing it later breaks the chain check.
+- For manual entries the app writes the agent name `Manual entry (Jira panel)` itself. Labels follow `source`, not the name, so an agent that calls itself `Manual entry (Jira panel)` is still shown as `MCP: Manual entry (Jira panel)`.
+- Where it shows: the evidence table (`Manual entry` under the time), **Details** (**Source**, and **Recorded by** instead of **Submitted by**), **History** (`MCP: <agent name>` or `Manual entry (Jira panel)`), the review dialog, the audit pack (Markdown and the CSV column `evidence_source`) and `latestSource` in `get-evidence-status`.
 
 ### Errors
 
@@ -132,7 +148,7 @@ Failures return `{ ok: false, error: { code, message } }` and store nothing.
 | `INVALID_INPUT` | A parameter is missing or not one of the allowed values |
 | `VERSION_NOT_FOUND` | `list-gaps` was given a `fixVersion` that is not a version of the project; the message lists the available versions |
 | `VERSIONS_UNAVAILABLE` | A fix-version filter was requested but Jira did not return the versions; nothing is filtered silently, retry once |
-| `FORBIDDEN` | The caller can view the issue but cannot edit it, so `submit-evidence` and `propose-work-order` are refused. Read-only tools still work. |
+| `FORBIDDEN` | The caller can view the issue but cannot edit it, so `submit-evidence` and `propose-work-order` are refused (and, in the issue panel, drafting, approving, **Record evidence** and reviewing). Read-only tools still work. |
 | `ISSUE_NOT_FOUND`, `PROJECT_NOT_FOUND` | The key does not exist, or the caller cannot view it |
 | `INTERNAL_ERROR` | Unexpected failure; retry once |
 
@@ -200,11 +216,11 @@ Fix versions are not stored by the app. They are read from Jira each time (as th
 
 ## Audit pack export
 
-On the Evidence Matrix page, **Export audit pack** builds a Markdown or CSV file for the issues you can see: approval, current status, latest evidence with its event number and hash, review decision, superseded evidence for the same revision (event number, verdict, time, first 12 characters of the hash, and review decision if any), and a fresh hash-chain check per issue. In CSV the superseded evidence is the second-to-last column, `superseded_evidence`, newest first; the last column, `fix_versions`, lists the work item's fix versions separated by semicolons. If a fix version is selected on the Evidence Matrix, the pack contains only the work items of that version (or only those without one, for **No version**), the counts cover only them, the Markdown header says `Filter: fix version "1.4.0"`, and the suggested file name carries it (for example `BMS-evidence-audit-fixversion-1.4.0-2026-11-13.md`), so the file can serve as the release evidence for that version. CSV has no header text, so there the filter is in the file name and in `fix_versions`. If the versions cannot be read or the version no longer exists, a filtered export fails instead of producing an unfiltered file. UI Kit apps cannot start a browser download, so the pack opens in a dialog; copy the text and save it under the suggested file name. People appear as Atlassian account IDs, because the app does not store names. Text from agents is cut to 500 characters in the export; the event hash points to the full record. CSV cells that a spreadsheet could run as a formula are prefixed with an apostrophe.
+On the Evidence Matrix page, **Export audit pack** builds a Markdown or CSV file for the issues you can see: approval, current status, latest evidence with its event number, hash, source (`MCP: <agent name>` or `Manual entry (Jira panel)`) and the account that submitted or recorded it, review decision, superseded evidence for the same revision (event number, verdict, time, first 12 characters of the hash, `(manual entry)` for entries recorded by hand, and review decision if any), and a fresh hash-chain check per issue. When the pack contains manual entries, the Markdown header explains the two sources. In CSV, `evidence_source` (`mcp` or `panel`) follows `agent_name`; the superseded evidence is the second-to-last column, `superseded_evidence`, newest first; the last column, `fix_versions`, lists the work item's fix versions separated by semicolons. If a fix version is selected on the Evidence Matrix, the pack contains only the work items of that version (or only those without one, for **No version**), the counts cover only them, the Markdown header says `Filter: fix version "1.4.0"`, and the suggested file name carries it (for example `BMS-evidence-audit-fixversion-1.4.0-2026-11-13.md`), so the file can serve as the release evidence for that version. CSV has no header text, so there the filter is in the file name and in `fix_versions`. If the versions cannot be read or the version no longer exists, a filtered export fails instead of producing an unfiltered file. UI Kit apps cannot start a browser download, so the pack opens in a dialog; copy the text and save it under the suggested file name. People appear as Atlassian account IDs, because the app does not store names. Text from agents is cut to 500 characters in the export; the event hash points to the full record. CSV cells that a spreadsheet could run as a formula are prefixed with an apostrophe.
 
 ## Permissions
 
-- Viewing the panels needs permission to view the issue. Drafting, approving, reviewing and discarding drafts need permission to edit the issue; people without it see a read-only panel. Jira itself only shows the panel's add button to people who can edit the issue.
+- Viewing the panels needs permission to view the issue. Drafting, approving, recording evidence by hand, reviewing and discarding drafts need permission to edit the issue; people without it see a read-only panel without **Record evidence**, **Accept** or **Reject**, and the backend refuses those calls as well. Jira itself only shows the panel's add button to people who can edit the issue.
 - MCP and Rovo tools run as the calling user. An issue the caller cannot view is reported as not found. Fix versions are read the same way: as the caller first, and as the app only after Jira refuses that call, in which case the app checks the caller's browse permission for the issues and the project before using the answer.
 - `submit-evidence` and `propose-work-order` write, so they need permission to edit the issue, the same as the panel. People with view permission only can still use the read-only tools (`get-work-order`, `get-evidence-status`, `list-open-work-orders`, `list-gaps`). The app asks Jira as the caller first; if Jira refuses that call, it checks the caller's account ID as the app instead, and an unknown caller counts as having no permission.
 - The issue property for JQL is written as the calling user, so Jira applies that user's edit permission.
@@ -222,12 +238,13 @@ The app declares no egress, no remote backends, no web triggers and no Forge LLM
 
 ## Known limitations
 
-- **No separation of duties.** An external agent submits evidence with the Atlassian identity of the person who signed in through `/mcp`, so `Submitted by` shows that person, and the same account can then accept or reject the evidence. The app does not stop a submitter from reviewing their own submission. `agentName` is reported by the agent and is not verified.
+- **No separation of duties.** An external agent submits evidence with the Atlassian identity of the person who signed in through `/mcp`, so `Submitted by` shows that person, and the same account can then accept or reject the evidence. Likewise, a person can record evidence by hand and then accept it themselves. The app does not stop anyone from reviewing their own submission or manual entry; it only records who submitted, who recorded and who reviewed, so the panel and the audit pack show it. `agentName` is reported by the agent and is not verified.
+- **Manual entries are not checked against anything.** **Record evidence** stores what a person enters; the app does not compare it with a commit, a CI run or a document.
 - **Developer tools are development-only.** Edit latest event, Restore edited events and Reset exist only on a development install with `EC_DEV_TOOLS=1` ([Developer tools](#developer-tools-development-environment-only)). Other installs cannot edit or delete events, so a demo work item cannot be reset there.
 - **Tool names carry an environment suffix** in Claude Code, for example `get-work-order_development`. Use the names that `/mcp` lists.
 - **The issue panel is added per work item.** Each work item needs the app actions icon, then **Acceptance Trail**, once, unless a Jira admin chooses **Show for all work items** in the panel's **•••** menu. The status panel in the right-hand column needs no click.
 - **The audit pack is text to copy, not a downloaded file.** UI Kit cannot start a browser download, so the pack opens in a dialog.
-- **Views do not update live.** After an agent submits evidence, select **Refresh** in the issue panel, the status panel or the Evidence Matrix, or reload the page. The collapsed status label in the right-hand column is recalculated only when Jira redraws it, for example when the work item is opened again; the app cannot ask Jira to update it.
+- **Views do not update live.** After an agent submits evidence through MCP, select **Refresh** in the issue panel, the status panel or the Evidence Matrix, or reload the page. The collapsed status label in the right-hand column is recalculated only when Jira redraws it, for example when the work item is opened again; the app cannot ask Jira to update it.
 - **History covers the current revision only.** Evidence for earlier revisions stays in the chain, but the panel shows only a per-revision summary of it.
 
 ## Development
@@ -239,11 +256,11 @@ forge lint
 
 | Path | Contents |
 |---|---|
-| `src/core/` | Pure logic: hash chain, state, evidence history and gap derivation, ADF parsing, validation, audit export, status label, count wording, fix-version filtering (`versions.js`, shared with the project page) and the Jira version lookups (`version-lookup.js`). No Forge imports. |
+| `src/core/` | Pure logic: hash chain, state, evidence history and gap derivation, ADF parsing, validation, evidence source labels (`source.js`), audit export, status label, count wording, fix-version filtering (`versions.js`, shared with the project page) and the Jira version lookups (`version-lookup.js`). No Forge imports. |
 | `src/storage/kvs.js` | Forge KVS adapter |
 | `src/jira/client.js` | Jira REST calls. Tries `asUser()` first and falls back to `asApp()` with an explicit permission check. |
 | `src/actions/` | The six MCP and Rovo tools |
-| `src/resolvers/` | Backend for the issue panel, the status panel and the project page |
+| `src/resolvers/` | Backend for the issue panel (including **Record evidence**), the status panel and the project page |
 | `src/triggers/` | Issue-updated trigger that refreshes matrix rows |
 | `src/frontend/` | UI Kit issue panel, status panel and project page |
 
@@ -262,3 +279,7 @@ forge deploy -e development
 ```
 
 Staging and production never pass the runtime check, so the buttons are not shown there and the backend refuses the calls. Outside development there is no way to delete or edit events: the chain is append-only.
+
+## License
+
+Apache License 2.0. See `LICENSE` and `NOTICE`.

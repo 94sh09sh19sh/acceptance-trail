@@ -1,4 +1,5 @@
 import { EVENT_TYPES } from './chain.js';
+import { evidenceSource } from './source.js';
 
 // 驗收條件的狀態（規格第 8 節）
 export const STATUS = Object.freeze({
@@ -109,6 +110,7 @@ function evidenceView(event) {
     reference: p.reference,
     outputExcerpt: p.outputExcerpt,
     agentName: p.agentName,
+    source: evidenceSource(p),
     truncated: p.truncated ?? [],
     submittedBy: event.actor,
     at: event.at,
@@ -128,6 +130,7 @@ function historyView(submitted, reviewsBySeq) {
         verdict: event.payload.verdict,
         evidenceType: event.payload.evidenceType,
         agentName: event.payload.agentName,
+        source: evidenceSource(event.payload),
         at: event.at,
         hash: event.hash,
         review: review ? { decision: review.payload.decision, reviewedBy: review.actor, at: review.at } : null,

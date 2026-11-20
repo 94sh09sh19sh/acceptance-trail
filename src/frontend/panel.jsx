@@ -6,6 +6,7 @@ import ForgeReconciler, {
   CodeBlock,
   DynamicTable,
   Heading,
+  HelperMessage,
   Inline,
   Label,
   LoadingButton,
@@ -23,10 +24,12 @@ import ForgeReconciler, {
   Stack,
   Text,
   TextArea,
+  Textfield,
   User,
   xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
+import { isManualEntry, sourceLabel } from '../core/source.js';
 import { countLabel, shortHash } from '../core/text.js';
 
 // 草稿列的固定代號（只在前端用，送出前會拿掉）
@@ -40,6 +43,7 @@ const evidenceSelectStyle = xcss({ width: '160px' });
 // 所有寫入都經過 resolver，resolver 會用 context 決定議題與使用者並檢查編輯權限。
 
 const EVIDENCE_OPTIONS = ['test', 'analysis', 'review', 'demo'].map((value) => ({ label: value, value }));
+const VERDICT_OPTIONS = ['pass', 'fail', 'not-run'].map((value) => ({ label: value, value }));
 
 const STATUS_LOZENGE = {
   'no-evidence': { appearance: 'default', text: 'No evidence' },
@@ -169,8 +173,9 @@ function EvidenceHistory({ history }) {
           content: (
             <Stack space="space.0">
               <Text size="small">{formatTime(item.at)}</Text>
+              {/* 來源依事件的 source 欄位顯示（MCP: 代理名稱，或 Manual entry (Jira panel)），不只看代理名稱 */}
               <Text size="small" color="color.text.subtle">
-                {item.agentName}
+                {sourceLabel(item)}
               </Text>
             </Stack>
           ),
@@ -195,6 +200,7 @@ function EvidenceModal({ criterion, onClose }) {
   const ev = criterion.latestEvidence;
   const verdict = VERDICT_LOZENGE[ev.verdict] ?? { appearance: 'default', text: ev.verdict };
   const hasHistory = (criterion.history?.length ?? 0) > 1;
+  const manual = isManualEntry(ev);
   return (
     <Modal onClose={onClose} width={hasHistory ? 'large' : 'medium'}>
       <ModalHeader>
@@ -223,11 +229,17 @@ function EvidenceModal({ criterion, onClose }) {
           ) : null}
           {ev.truncated?.length ? <Text size="small">{`Truncated by the app: ${ev.truncated.join(', ')}`}</Text> : null}
           <Inline space="space.100" alignBlock="center">
-            <Text weight="semibold">Agent</Text>
-            <Text>{ev.agentName}</Text>
+            <Text weight="semibold">Source</Text>
+            <Text>{manual ? 'Manual entry (Jira panel), recorded by a person' : 'AI agent through MCP'}</Text>
           </Inline>
+          {manual ? null : (
+            <Inline space="space.100" alignBlock="center">
+              <Text weight="semibold">Agent</Text>
+              <Text>{ev.agentName}</Text>
+            </Inline>
+          )}
           <Inline space="space.100" alignBlock="center">
-            <Text weight="semibold">Submitted by</Text>
+            <Text weight="semibold">{manual ? 'Recorded by' : 'Submitted by'}</Text>
             {ev.submittedBy && ev.submittedBy !== 'unknown' ? <User accountId={ev.submittedBy} /> : <Text>Unknown</Text>}
             <Text>{formatTime(ev.at)}</Text>
           </Inline>
@@ -264,6 +276,11 @@ function ReviewModal({ criterion, decision, busy, onConfirm, onClose }) {
       <ModalBody>
         <Stack space="space.100">
           <Text>{criterion.latestEvidence.summary}</Text>
+          {isManualEntry(criterion.latestEvidence) ? (
+            <Text size="small" color="color.text.subtle">
+              This evidence was recorded by hand in the Jira panel, not reported by an agent.
+            </Text>
+          ) : null}
           <Label labelFor="review-note">Note (optional)</Label>
           {/* 不可綁 value：UI Kit 的受控輸入會在打字時被舊值蓋回去，只留下最後一個字元 */}
           <TextArea id="review-note" defaultValue="" onChange={(event) => setNote(event.target.value)} />
@@ -275,6 +292,109 @@ function ReviewModal({ criterion, decision, busy, onConfirm, onClose }) {
         </Button>
         <LoadingButton appearance={decision === 'accept' ? 'primary' : 'danger'} isLoading={busy} onClick={() => onConfirm(note)}>
           {decision === 'accept' ? 'Accept' : 'Reject'}
+        </LoadingButton>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
+// 人手動記錄一條驗收條件的證據（Record evidence）。欄位與 MCP 的 submit-evidence 相同，只是沒有代理名稱：
+// 來源與代理名稱由後端固定寫入。長度上限與截斷由後端照 submit-evidence 的規則處理，這裡只提示上限、不先截。
+// 文字欄位同樣不可綁 value（見 ReviewModal），用 defaultValue 加 onChange 記下最新內容。
+function RecordEvidenceModal({ criterion, rev, busy, error, onConfirm, onClose }) {
+  const [verdict, setVerdict] = useState(null);
+  const [evidenceType, setEvidenceType] = useState(criterion.evidenceType);
+  const [summary, setSummary] = useState('');
+  const [reference, setReference] = useState('');
+  const [outputExcerpt, setOutputExcerpt] = useState('');
+  const ready = Boolean(verdict) && summary.trim().length > 0;
+  return (
+    <Modal onClose={onClose} width="medium">
+      <ModalHeader>
+        <ModalTitle>{`Record evidence for ${criterion.id}`}</ModalTitle>
+      </ModalHeader>
+      <ModalBody>
+        <Stack space="space.150">
+          <Stack space="space.050">
+            <Text>{criterion.text}</Text>
+            <Text size="small" color="color.text.subtle">{`Work order revision ${rev} · Required evidence: ${criterion.evidenceType}`}</Text>
+          </Stack>
+          <Text size="small">
+            This is saved as a manual entry under your account, not as an agent report. Someone with edit permission still accepts or rejects it, and only the latest evidence for a criterion counts.
+          </Text>
+          {error ? (
+            <SectionMessage appearance="error" title="That did not work">
+              <Text>{error}</Text>
+            </SectionMessage>
+          ) : null}
+          <Stack space="space.050">
+            <Label labelFor="record-verdict">Verdict (required)</Label>
+            <Select
+              inputId="record-verdict"
+              options={VERDICT_OPTIONS}
+              value={VERDICT_OPTIONS.find((o) => o.value === verdict) ?? null}
+              placeholder="Choose pass, fail or not-run"
+              onChange={(option) => setVerdict(option?.value ?? null)}
+            />
+            <HelperMessage>fail and not-run count as gaps.</HelperMessage>
+          </Stack>
+          <Stack space="space.050">
+            <Label labelFor="record-type">Evidence type</Label>
+            <Select
+              inputId="record-type"
+              options={EVIDENCE_OPTIONS}
+              value={EVIDENCE_OPTIONS.find((o) => o.value === evidenceType)}
+              onChange={(option) => setEvidenceType(option?.value ?? criterion.evidenceType)}
+            />
+          </Stack>
+          <Stack space="space.050">
+            <Label labelFor="record-summary">Summary (required)</Label>
+            <TextArea
+              id="record-summary"
+              defaultValue=""
+              minimumRows={3}
+              resize="vertical"
+              placeholder="What was checked and what the result shows"
+              onChange={(event) => setSummary(event.target.value)}
+            />
+            <HelperMessage>Up to 2,000 characters.</HelperMessage>
+          </Stack>
+          <Stack space="space.050">
+            <Label labelFor="record-reference">Reference (optional)</Label>
+            <Textfield
+              id="record-reference"
+              defaultValue=""
+              placeholder="A commit SHA, CI run link or document link"
+              onChange={(event) => setReference(event.target.value)}
+            />
+            <HelperMessage>Up to 500 characters.</HelperMessage>
+          </Stack>
+          <Stack space="space.050">
+            <Label labelFor="record-output">Output excerpt (optional)</Label>
+            <TextArea
+              id="record-output"
+              defaultValue=""
+              minimumRows={3}
+              resize="vertical"
+              isMonospaced
+              placeholder="The relevant part of a test or tool output"
+              onChange={(event) => setOutputExcerpt(event.target.value)}
+            />
+            <HelperMessage>Up to 4,000 characters. Longer text in any field is cut to its limit, and the record says which fields were cut.</HelperMessage>
+          </Stack>
+        </Stack>
+      </ModalBody>
+      <ModalFooter>
+        <Button appearance="subtle" onClick={onClose}>
+          Cancel
+        </Button>
+        <LoadingButton
+          appearance="primary"
+          isLoading={busy}
+          isDisabled={!ready}
+          onClick={() => onConfirm({ verdict, evidenceType, summary, reference, outputExcerpt })}
+        >
+          Record evidence
         </LoadingButton>
       </ModalFooter>
     </Modal>
@@ -305,7 +425,7 @@ function ResetModal({ issueKey, busy, onConfirm, onClose }) {
   );
 }
 
-function WorkOrderTable({ view, onDetails, onReview }) {
+function WorkOrderTable({ view, onDetails, onReview, onRecord }) {
   // 欄數少、條件文字欄最寬：主欄窄時也讀得順。Required 併入條件欄的小字，覆核按鈕放在最新證據欄內第二行。
   const head = {
     cells: [
@@ -341,7 +461,7 @@ function WorkOrderTable({ view, onDetails, onReview }) {
               {ev ? (
                 <Stack space="space.050">
                   <Lozenge appearance={verdict.appearance}>{verdict.text}</Lozenge>
-                  <Text size="small">{formatTime(ev.at)}</Text>
+                  <Text size="small">{isManualEntry(ev) ? `${formatTime(ev.at)} · Manual entry` : formatTime(ev.at)}</Text>
                   <Text maxLines={2}>{ev.summary}</Text>
                   {criterion.evidenceCount > 1 ? (
                     <Text size="small" color="color.text.subtle">
@@ -368,6 +488,12 @@ function WorkOrderTable({ view, onDetails, onReview }) {
                     </Button>
                   </ButtonGroup>
                 ) : null}
+                {/* 次要動作：沒有編輯權限的人看不到，後端也會拒絕 */}
+                {view.canEdit ? (
+                  <Button spacing="compact" appearance="subtle" onClick={() => onRecord(criterion)}>
+                    Record evidence
+                  </Button>
+                ) : null}
               </Inline>
               {criterion.status === 'submitted' && !view.canEdit ? <Text size="small">Awaiting reviewer</Text> : null}
               {criterion.status !== 'submitted' && criterion.review?.note ? (
@@ -389,6 +515,7 @@ function App() {
   const [busy, setBusy] = useState(null);
   const [details, setDetails] = useState(null);
   const [review, setReview] = useState(null);
+  const [recording, setRecording] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [loadedAt, setLoadedAt] = useState(null);
 
@@ -446,15 +573,27 @@ function App() {
           Refresh
         </LoadingButton>
       </Inline>
-      {actionError ? (
+      {/* 表單開著時錯誤顯示在表單裡，這裡不重複 */}
+      {actionError && !recording ? (
         <SectionMessage appearance="error" title="That did not work">
           <Text>{actionError}</Text>
+        </SectionMessage>
+      ) : null}
+      {view.recorded ? (
+        <SectionMessage appearance="success" title={`Recorded evidence for ${view.recorded.criterionId}`}>
+          <Text>
+            {`Event #${view.recorded.seq}, saved as a manual entry. It is now the latest evidence for ${view.recorded.criterionId} and is awaiting review.${
+              view.recorded.truncated?.length ? ` Cut to the length limit: ${view.recorded.truncated.join(', ')}.` : ''
+            }`}
+          </Text>
         </SectionMessage>
       ) : null}
 
       {!workOrder && !draft ? (
         <Stack space="space.100">
-          <Text>No work order yet. Draft one from this issue's acceptance criteria, then approve it so AI agents can report evidence for each criterion.</Text>
+          <Text>
+            No work order yet. Draft one from this issue's acceptance criteria, then approve it. After that, AI agents can report evidence for each criterion through MCP, and people who can edit the issue can record evidence by hand.
+          </Text>
           {canEdit ? (
             <Inline>
               <LoadingButton appearance="primary" isLoading={busy === 'draft'} onClick={() => run('draftFromDescription', 'draft')}>
@@ -494,7 +633,15 @@ function App() {
               <Text>This work order may be out of date. Draft and approve a new revision if the acceptance criteria changed.</Text>
             </SectionMessage>
           ) : null}
-          <WorkOrderTable view={view} onDetails={setDetails} onReview={(criterion, decision) => setReview({ criterion, decision })} />
+          <WorkOrderTable
+            view={view}
+            onDetails={setDetails}
+            onReview={(criterion, decision) => setReview({ criterion, decision })}
+            onRecord={(criterion) => {
+              setActionError(null);
+              setRecording(criterion);
+            }}
+          />
           {state.previousRevisions?.length ? (
             <Text size="small" color="color.text.subtle">
               {`Earlier revisions: ${state.previousRevisions
@@ -577,6 +724,23 @@ function App() {
           />
         ) : null}
         {details ? <EvidenceModal criterion={details} onClose={() => setDetails(null)} /> : null}
+        {recording && workOrder ? (
+          <RecordEvidenceModal
+            criterion={recording}
+            rev={workOrder.rev}
+            busy={busy === 'record'}
+            error={actionError}
+            onClose={() => {
+              setRecording(null);
+              setActionError(null);
+            }}
+            onConfirm={async (form) => {
+              // 版次用開表單當下面板顯示的版次；期間有人核准新版次時，後端回 REVISION_MISMATCH，不寫入
+              const done = await run('recordEvidence', 'record', { criterionId: recording.id, workOrderRev: workOrder.rev, ...form });
+              if (done) setRecording(null);
+            }}
+          />
+        ) : null}
         {review ? (
           <ReviewModal
             criterion={review.criterion}
