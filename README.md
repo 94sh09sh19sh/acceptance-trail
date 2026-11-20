@@ -38,7 +38,7 @@ For a first run on your own Jira site. The button names below are the ones the a
 5. **Review in Jira.** **Details** opens the evidence: **Source** says `Manual entry (Jira panel)` and **Recorded by** shows your account. **Accept** or **Reject** records your review. Then select **Record evidence** for AC-2 again with `pass` and open **Details** for AC-2: the **History** list shows both entries, the newest marked `latest` and the earlier one `superseded`. Only the latest counts and can be reviewed.
 6. **Let an AI agent report through MCP.** This is the path for AI coding agents. It needs a site admin and an MCP client with remote HTTP and OAuth support (we tested Claude Code). If you cannot do this now, go on to step 7.
    1. Turn on the app's MCP tools in Atlassian Administration ([Enable the MCP server](#enable-the-mcp-server-for-external-agents)).
-   2. Connect Claude Code ([Connect Claude Code](#connect-claude-code)): `claude mcp add --transport http acceptance-trail https://mcp.atlassian.com/forge/<appId>`, then `/mcp` to sign in to Atlassian and pick your site. The tool names carry an environment suffix; `/mcp` lists the exact names (for example `get-work-order_development` on a development install).
+   2. Connect Claude Code ([Connect Claude Code](#connect-claude-code)): `claude mcp add --transport http acceptance-trail https://mcp.atlassian.com/forge/<appId>`, then `/mcp` to sign in to Atlassian and pick your site. On an install from the installation link the tool names have no suffix (`get-work-order`); a development install appends `_development` (`get-work-order_development`). `/mcp` lists the exact names.
    3. Give the agent a prompt that needs no code:
 
       ```text
@@ -104,7 +104,7 @@ claude mcp add --transport http acceptance-trail https://mcp.atlassian.com/forge
 
 Inside Claude Code, run `/mcp` to authenticate. A browser window opens for Atlassian consent; pick the site where the app is installed. Tools then run with your own Jira permissions. A newly added server is loaded when Claude Code starts, so restart the session if the tools do not appear.
 
-Claude Code adds the environment name to each tool name. On a development install, for example, `get-work-order` appears as `get-work-order_development`.
+Tool names depend on the environment. An install from the installation link (production) uses the plain names, for example `get-work-order`. A development install appends the environment name: `get-work-order_development`. A site that has both installs sees both sets on the same connection.
 
 A typical agent loop:
 
@@ -241,7 +241,7 @@ The app declares no egress, no remote backends, no web triggers and no Forge LLM
 - **No separation of duties.** An external agent submits evidence with the Atlassian identity of the person who signed in through `/mcp`, so `Submitted by` shows that person, and the same account can then accept or reject the evidence. Likewise, a person can record evidence by hand and then accept it themselves. The app does not stop anyone from reviewing their own submission or manual entry; it only records who submitted, who recorded and who reviewed, so the panel and the audit pack show it. `agentName` is reported by the agent and is not verified.
 - **Manual entries are not checked against anything.** **Record evidence** stores what a person enters; the app does not compare it with a commit, a CI run or a document.
 - **Developer tools are development-only.** Edit latest event, Restore edited events and Reset exist only on a development install with `EC_DEV_TOOLS=1` ([Developer tools](#developer-tools-development-environment-only)). Other installs cannot edit or delete events, so a demo work item cannot be reset there.
-- **Tool names carry an environment suffix** in Claude Code, for example `get-work-order_development`. Use the names that `/mcp` lists.
+- **Tool names differ by environment.** A production install uses the plain names (`get-work-order`); a development install appends `_development`. Use the names that `/mcp` lists.
 - **The issue panel is added per work item.** Each work item needs the app actions icon, then **Acceptance Trail**, once, unless a Jira admin chooses **Show for all work items** in the panel's **•••** menu. The status panel in the right-hand column needs no click.
 - **The audit pack is text to copy, not a downloaded file.** UI Kit cannot start a browser download, so the pack opens in a dialog.
 - **Views do not update live.** After an agent submits evidence through MCP, select **Refresh** in the issue panel, the status panel or the Evidence Matrix, or reload the page. The collapsed status label in the right-hand column is recalculated only when Jira redraws it, for example when the work item is opened again; the app cannot ask Jira to update it.
