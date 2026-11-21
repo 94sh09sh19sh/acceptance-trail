@@ -10,6 +10,7 @@ import { summaryPrefix } from '../core/keys.js';
 import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
 import { EVIDENCE_SOURCE } from '../core/source.js';
 import { GAP_KINDS } from '../core/state.js';
+import { LIMITS } from '../core/validate.js';
 import { requireFixVersions, resolveVersionFilter, withFixVersions } from '../core/version-lookup.js';
 import { describeVersionFilter, filterByVersion, parseVersionFilter, totalsOf, versionFileTag } from '../core/versions.js';
 import {
@@ -106,19 +107,20 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
     },
 
     // 從議題描述抽出條列當草稿；描述抽不到東西而現行版存在時，以現行版的條件為底（起草下一版）。
-    // 草稿記下條件的來源（extraction.from）：找不到 Acceptance criteria 標題而退回全文清單時是 all-lists，面板會提醒人刪掉不是條件的條目。
+    // 草稿記下條件的來源與條數（extraction）：找不到 Acceptance criteria 標題而退回全文清單時 from 是 all-lists，
+    // 面板會提醒人刪掉不是條件的條目。抽到的條目超過一張工作單的上限時只留前面的，存檔照常成功，面板提示找到幾條、留了幾條。
     async draftFromDescription(identity) {
       const issue = await requireEditor(identity);
       const { workOrder } = await loadIssueState(store, issue.issueId);
       const { items, from } = extractCriteria(issue.description);
-      const parsed = items.map((text) => ({ text, evidenceType: 'test' }));
+      const parsed = items.slice(0, LIMITS.maxCriteria).map((text) => ({ text, evidenceType: 'test' }));
       const criteria = parsed.length > 0 ? parsed : workOrder ? workOrder.criteria.map(({ text, evidenceType }) => ({ text, evidenceType })) : [];
       await saveDraft(store, issue.issueId, {
         criteria,
         source: parsed.length > 0 ? 'parser' : 'manual',
         at: now(),
         actor: identity.accountId,
-        extraction: parsed.length > 0 ? { from } : undefined,
+        extraction: parsed.length > 0 ? { from, found: items.length, kept: parsed.length } : undefined,
       });
       return panelView(issue, identity);
     },

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CRITERIA_FROM } from '../src/core/adf.js';
 import { FALLBACK_NOTICE, draftNotices } from '../src/core/draft-notice.js';
+import { LIMITS } from '../src/core/validate.js';
 import { createResolverLogic } from '../src/resolvers/logic.js';
 import { adfDoc, createFakeJira, createMemoryStore, h, p, sequentialClock, ul } from './helpers.js';
 
@@ -42,4 +43,44 @@ test('draft from description: 找不到標題而退回全文清單時，草稿�
   const emptyView = await empty.ui.draftFromDescription(HUMAN);
   assert.deepEqual(emptyView.draft.criteria, []);
   assert.deepEqual(draftNotices(emptyView.draft), []);
+});
+
+// ---- F4 描述裡的條目超過 30 條 ----
+
+test('draft from description: 超過 30 條（11 條、每條 2 個子條目）時保留前 30 條、存檔成功，並提示找到幾條', async () => {
+  const items = Array.from({ length: 11 }, (_, i) => ({ type: 'listItem', content: [p(`Criterion ${i + 1}`), ul(`Detail ${i + 1}a`, `Detail ${i + 1}b`)] }));
+  const { ui } = setup(adfDoc(p('Acceptance criteria'), ul(...items)));
+  const view = await ui.draftFromDescription(HUMAN);
+  assert.ok(view.draft, '起草失敗，面板停在 No work order');
+  assert.equal(view.draft.criteria.length, LIMITS.maxCriteria);
+  assert.deepEqual(view.draft.criteria.slice(0, 3).map((c) => c.text), ['Criterion 1', 'Detail 1a', 'Detail 1b']);
+  assert.equal(view.draft.criteria.at(-1).text, 'Detail 10b');
+  assert.deepEqual(view.draft.extraction, { from: CRITERIA_FROM.SECTION, found: 33, kept: 30 });
+  assert.deepEqual(draftNotices(view.draft), ['Found 33 items in the description and kept the first 30. Merge or remove items before you approve.']);
+  // 留下的 30 條可以直接核准
+  const approved = await ui.approve(HUMAN, {});
+  assert.equal(approved.workOrder.rev, 1);
+  assert.equal(approved.state.total, 30);
+});
+
+test('draft from description: 剛好 30 條不提示；退回全文清單又超過上限時兩則提示都有', async () => {
+  const thirty = setup(adfDoc(p('Acceptance criteria'), ul(...Array.from({ length: 30 }, (_, i) => `C${i + 1}`))));
+  const view = await thirty.ui.draftFromDescription(HUMAN);
+  assert.equal(view.draft.criteria.length, 30);
+  assert.deepEqual(draftNotices(view.draft), []);
+
+  const both = setup(adfDoc(ul(...Array.from({ length: 20 }, (_, i) => `A${i + 1}`)), ul(...Array.from({ length: 15 }, (_, i) => `B${i + 1}`))));
+  const bothView = await both.ui.draftFromDescription(HUMAN);
+  assert.equal(bothView.draft.criteria.length, 30);
+  assert.deepEqual(draftNotices(bothView.draft), [FALLBACK_NOTICE, 'Found 35 items in the description and kept the first 30. Merge or remove items before you approve.']);
+});
+
+test('save draft: 人在草稿編輯器加到超過 30 條時照舊拒絕，草稿不變', async () => {
+  const { ui } = setup(adfDoc(p('Acceptance criteria'), ul('A')));
+  await ui.draftFromDescription(HUMAN);
+  const rows = Array.from({ length: 31 }, (_, i) => ({ text: `C${i + 1}`, evidenceType: 'test' }));
+  const error = await ui.saveDraft(HUMAN, { criteria: rows }).catch((e) => e);
+  assert.equal(error.name, 'ValidationError');
+  assert.equal(error.message, 'A work order can have at most 30 criteria.');
+  assert.deepEqual((await ui.getPanel(HUMAN)).draft.criteria.map((c) => c.text), ['A']);
 });
