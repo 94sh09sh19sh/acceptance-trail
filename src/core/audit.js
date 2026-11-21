@@ -11,9 +11,12 @@ export const AUDIT_FORMATS = Object.freeze(['markdown', 'csv']);
 // 代理的長文字會截斷，讓單次匯出維持合理大小；事件雜湊仍指向鏈上的完整記錄。
 const MAX_TEXT = 500;
 
+// 依碼點截斷（和 validate.js 的 truncate 相同），不把表情符號切成一半
 const clip = (text, max = MAX_TEXT) => {
   const value = text == null ? '' : String(text);
-  return value.length > max ? `${value.slice(0, max)}…` : value;
+  if (value.length <= max) return value;
+  const chars = Array.from(value);
+  return chars.length > max ? `${chars.slice(0, max).join('')}…` : value;
 };
 
 // ---- CSV ----

@@ -28,11 +28,15 @@ export function cleanString(value) {
   return String(value).trim();
 }
 
-// 超過上限就截斷，並回報是否截斷過，讓呼叫端在回傳裡註明
+// 超過上限就截斷，並回報是否截斷過，讓呼叫端在回傳裡註明。
+// 長度依 Unicode 碼點計算、依碼點截斷，不會把表情符號這類由兩個 UTF-16 單位組成的字切成一半（留下孤立的代理字元）。
+// 只影響新寫入的內容；已寫入的事件不會重新截斷，雜湊照舊。
 export function truncate(value, max) {
   const text = cleanString(value);
   if (text.length <= max) return { value: text, truncated: false };
-  return { value: text.slice(0, max), truncated: true };
+  const chars = Array.from(text);
+  if (chars.length <= max) return { value: text, truncated: false };
+  return { value: chars.slice(0, max).join(''), truncated: true };
 }
 
 export function requireString(value, name) {
