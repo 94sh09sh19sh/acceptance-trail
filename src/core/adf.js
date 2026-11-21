@@ -7,14 +7,49 @@
 const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList']);
 const ITEM_TYPES = new Set(['listItem', 'taskItem']);
 const HEADER_PATTERN = /^acceptance\s+criteria\s*:?$/i;
+// 子節點是行內節點（文字、連結、提及等）的區塊：子節點直接相接。
+// 其他有子節點的區塊（清單條目、表格儲存格、panel 等）裡是一段一段的區塊，各段之間用空白相接，避免兩段黏成一個字。
+const INLINE_PARENTS = new Set(['paragraph', 'heading', 'codeBlock', 'taskItem', 'decisionItem', 'caption']);
+
+const asString = (value) => (typeof value === 'string' ? value : '');
+
+// date 節點的 timestamp 是毫秒字串，轉成 YYYY-MM-DD（UTC）；無效就略過
+function formatDate(timestamp) {
+  const ms = Number(timestamp);
+  if (timestamp === undefined || timestamp === null || timestamp === '' || !Number.isFinite(ms)) return '';
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+// 沒有 text 欄位的行內節點：智慧連結取網址、提及取顯示文字、表情取文字（沒有就 shortName）、日期轉成 YYYY-MM-DD、狀態取文字。
+// 其他未知的節點若有 attrs.text 就用它，否則略過。placeholder 是範本裡的提示字，不是內容，所以不取。
+function atomText(node) {
+  const attrs = node.attrs ?? {};
+  switch (node.type) {
+    case 'inlineCard':
+    case 'blockCard':
+    case 'embedCard':
+      return asString(attrs.url) || asString(attrs.data?.url);
+    case 'emoji':
+      return asString(attrs.text) || asString(attrs.shortName);
+    case 'date':
+      return formatDate(attrs.timestamp);
+    case 'placeholder':
+      return '';
+    default:
+      // mention、status 與其他未知節點
+      return asString(attrs.text);
+  }
+}
 
 // 取一個節點底下的純文字，但不進入巢狀清單（巢狀清單的條目會另外成為一條）
 function inlineText(node) {
-  if (!node) return '';
-  if (node.type === 'text') return node.text ?? '';
+  if (!node || typeof node !== 'object') return '';
+  if (node.type === 'text') return asString(node.text);
   if (node.type === 'hardBreak') return ' ';
   if (LIST_TYPES.has(node.type)) return '';
-  return (node.content ?? []).map(inlineText).join('');
+  if (!Array.isArray(node.content)) return atomText(node);
+  return node.content.map(inlineText).join(INLINE_PARENTS.has(node.type) ? '' : ' ');
 }
 
 function collapse(text) {
@@ -24,6 +59,11 @@ function collapse(text) {
 // 把一個清單攤平成條目文字（含巢狀清單）
 function listItems(listNode, out) {
   for (const item of listNode.content ?? []) {
+    // 巢狀核取清單：ADF 把子 taskList 直接放在 taskList 底下（不在 taskItem 裡）
+    if (LIST_TYPES.has(item.type)) {
+      listItems(item, out);
+      continue;
+    }
     if (!ITEM_TYPES.has(item.type)) continue;
     const text = collapse(inlineText(item));
     if (text) out.push(text);
