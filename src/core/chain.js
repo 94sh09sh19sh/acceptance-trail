@@ -1,4 +1,5 @@
 import { canonicalJson, sha256Hex } from './canonical.js';
+import { DomainError } from './errors.js';
 import { ZERO_HASH, eventKey, eventPrefix, headKey } from './keys.js';
 
 export const EVENT_TYPES = Object.freeze({
@@ -8,7 +9,12 @@ export const EVENT_TYPES = Object.freeze({
 });
 
 // 同時寫入時最多重試幾次；每次衝突代表別人搶先寫了一筆，序號往後推一格再試
-const MAX_APPEND_ATTEMPTS = 25;
+export const MAX_APPEND_ATTEMPTS = 25;
+
+// 衝突後、重試前等一段隨機時間（毫秒），讓同時寫入的請求錯開；等待上限隨重試次數增加，最多 50 毫秒
+export function retryJitter(attempt) {
+  return new Promise((resolve) => setTimeout(resolve, Math.random() * Math.min(50, 5 * attempt)));
+}
 
 // hash = SHA-256(prevHash + 正規化 JSON)。被雜湊的內容是事件本體（不含 prevHash 與 hash 欄位）。
 export function computeEventHash(prevHash, body) {
@@ -46,9 +52,11 @@ async function advanceHead(store, issueId, seq, hash) {
 }
 
 // 新增一筆事件。防競爭的做法：事件鍵用「鍵不存在才寫入」，
-// 兩個寫入者搶同一個序號時只有一個成功，另一個重新找鏈尾再試，所以序號不會重複、也不會跳號。
-export async function appendEvent(store, issueId, { type, actor, payload, at }) {
+// 兩個寫入者搶同一個序號時只有一個成功，另一個隨機等一下、重新找鏈尾再試，所以序號不會重複、也不會跳號。
+// 重試用完時回 BUSY（可辨識的「請重試」），什麼都沒寫入。wait 可注入，測試用來省掉等待。
+export async function appendEvent(store, issueId, { type, actor, payload, at }, { wait = retryJitter } = {}) {
   for (let attempt = 0; attempt < MAX_APPEND_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await wait(attempt);
     const tip = await resolveTip(store, issueId);
     const body = { seq: tip.seq + 1, type, at, actor: actor || 'unknown', payload };
     const event = { ...body, prevHash: tip.hash, hash: computeEventHash(tip.hash, body) };
@@ -57,7 +65,7 @@ export async function appendEvent(store, issueId, { type, actor, payload, at }) 
       return event;
     }
   }
-  throw new Error('Could not append the event because of concurrent writes. Please retry.');
+  throw new DomainError('BUSY', 'Too many writes at once. Retry this call.');
 }
 
 // 驗證整條鏈：序號從 1 連續、每筆的 prevHash 等於前一筆的 hash、hash 重算相符。

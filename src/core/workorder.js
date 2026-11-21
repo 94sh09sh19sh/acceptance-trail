@@ -1,5 +1,6 @@
 import { canonicalJson } from './canonical.js';
 import { EVENT_TYPES, appendEvent, listEvents, verifyChain } from './chain.js';
+import { DomainError } from './errors.js';
 import { draftKey, headKey, revKey, summaryKey } from './keys.js';
 import { syncMirror } from './mirror.js';
 import { EVIDENCE_SOURCE, EVIDENCE_SOURCES, MANUAL_AGENT_NAME } from './source.js';
@@ -17,14 +18,8 @@ import {
   truncate,
 } from './validate.js';
 
-// 商業規則錯誤：帶一個穩定的代號，讓代理可以依代號判斷下一步
-export class DomainError extends Error {
-  constructor(code, message) {
-    super(message);
-    this.name = 'DomainError';
-    this.code = code;
-  }
-}
+// 商業規則錯誤（定義在 errors.js，這裡照舊匯出，既有的匯入不用改）
+export { DomainError };
 
 export const DRAFT_SOURCES = Object.freeze(['parser', 'manual', 'agent']);
 

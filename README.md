@@ -150,6 +150,7 @@ Failures return `{ ok: false, error: { code, message } }` and store nothing.
 | `VERSIONS_UNAVAILABLE` | A fix-version filter was requested but Jira did not return the versions; nothing is filtered silently, retry once |
 | `FORBIDDEN` | The caller can view the issue but cannot edit it, so `submit-evidence` and `propose-work-order` are refused (and, in the issue panel, drafting, approving, **Record evidence** and reviewing). Read-only tools still work. |
 | `ISSUE_NOT_FOUND`, `PROJECT_NOT_FOUND` | The key does not exist, or the caller cannot view it |
+| `BUSY` | Too many writes reached the same issue at once, for example many `submit-evidence` calls in parallel. Nothing was stored; retry the call. |
 | `INTERNAL_ERROR` | Unexpected failure; retry once |
 
 ### Statuses and gaps
