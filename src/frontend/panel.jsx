@@ -68,10 +68,14 @@ const REVIEW_TEXT = { accept: 'Accepted', reject: 'Rejected' };
 
 const formatTime = (iso) => (iso ? iso.replace('T', ' ').slice(0, 16) + ' UTC' : '');
 
-// 呼叫 resolver，把 { ok:false } 轉成例外，讓畫面統一處理錯誤
+// 呼叫 resolver，把 { ok:false } 轉成例外，讓畫面統一處理錯誤；錯誤代號放在例外的 code
 async function call(name, payload) {
   const result = await invoke(name, payload);
-  if (!result?.ok) throw new Error(result?.error?.message ?? 'Request failed.');
+  if (!result?.ok) {
+    const error = new Error(result?.error?.message ?? 'Request failed.');
+    error.code = result?.error?.code ?? null;
+    throw error;
+  }
   return result.data;
 }
 
@@ -278,7 +282,8 @@ function EvidenceModal({ criterion, onClose }) {
   );
 }
 
-function ReviewModal({ criterion, decision, busy, onConfirm, onClose }) {
+// 覆核失敗時錯誤顯示在對話框裡（面板上方的錯誤會被對話框的遮罩蓋住），和 RecordEvidenceModal 相同
+function ReviewModal({ criterion, decision, busy, error, onConfirm, onClose }) {
   const [note, setNote] = useState('');
   return (
     <Modal onClose={onClose}>
@@ -292,6 +297,11 @@ function ReviewModal({ criterion, decision, busy, onConfirm, onClose }) {
             <Text size="small" color="color.text.subtle">
               This evidence was recorded by hand in the Jira panel, not reported by an agent.
             </Text>
+          ) : null}
+          {error ? (
+            <SectionMessage appearance="error" title="That did not work">
+              <Text>{error}</Text>
+            </SectionMessage>
           ) : null}
           <Label labelFor="review-note">Note (optional)</Label>
           {/* 不可綁 value：UI Kit 的受控輸入會在打字時被舊值蓋回去，只留下最後一個字元 */}
@@ -547,7 +557,8 @@ function App() {
 
   // 每個按鈕動作都回傳更新後的整個面板資料。
   // Refresh 也走這裡（呼叫 getPanel），畫面保留舊資料，只讓按鈕顯示載入中；失敗時顯示錯誤訊息但不清掉畫面。
-  const run = async (name, label, payload) => {
+  // onError（選填）在顯示錯誤後、按鈕恢復前執行，讓呼叫端依錯誤代號做後續處理。
+  const run = async (name, label, payload, { onError } = {}) => {
     setBusy(label);
     setActionError(null);
     try {
@@ -556,9 +567,20 @@ function App() {
       return true;
     } catch (error) {
       setActionError(error.message);
+      if (onError) await onError(error);
       return false;
     } finally {
       setBusy(null);
+    }
+  };
+
+  // 重新取面板資料但保留目前的錯誤訊息；失敗就留著舊畫面與原本的錯誤
+  const reloadKeepingError = async () => {
+    try {
+      setView(await call('getPanel'));
+      setLoadedAt(new Date().toISOString());
+    } catch {
+      // 原本的錯誤訊息已經說明要重看，這裡不蓋掉它
     }
   };
 
@@ -585,8 +607,8 @@ function App() {
           Refresh
         </LoadingButton>
       </Inline>
-      {/* 表單開著時錯誤顯示在表單裡，這裡不重複 */}
-      {actionError && !recording ? (
+      {/* 表單或覆核對話框開著時錯誤顯示在對話框裡，這裡不重複 */}
+      {actionError && !recording && !review ? (
         <SectionMessage appearance="error" title="That did not work">
           <Text>{actionError}</Text>
         </SectionMessage>
@@ -648,7 +670,10 @@ function App() {
           <WorkOrderTable
             view={view}
             onDetails={setDetails}
-            onReview={(criterion, decision) => setReview({ criterion, decision })}
+            onReview={(criterion, decision) => {
+              setActionError(null);
+              setReview({ criterion, decision });
+            }}
             onRecord={(criterion) => {
               setActionError(null);
               setRecording(criterion);
@@ -759,9 +784,25 @@ function App() {
             criterion={review.criterion}
             decision={review.decision}
             busy={busy === 'review'}
-            onClose={() => setReview(null)}
+            error={actionError}
+            onClose={() => {
+              setReview(null);
+              setActionError(null);
+            }}
             onConfirm={async (note) => {
-              const done = await run('review', 'review', { evidenceSeq: review.criterion.latestEvidence.seq, decision: review.decision, note });
+              const done = await run(
+                'review',
+                'review',
+                { evidenceSeq: review.criterion.latestEvidence.seq, decision: review.decision, note },
+                {
+                  // 有較新的證據或版次已換：這筆不能再覆核。關掉對話框並重新載入，錯誤訊息留在面板上方說明為什麼要重看
+                  onError: async (error) => {
+                    if (error.code !== 'OUTDATED_EVIDENCE') return;
+                    setReview(null);
+                    await reloadKeepingError();
+                  },
+                },
+              );
               if (done) setReview(null);
             }}
           />
