@@ -80,10 +80,14 @@ export function requireProjectKey(value) {
 }
 
 // 驗收條件清單（草稿用）：每筆 { text, evidenceType }。空白的條目直接丟掉。
+// text 有給卻不是字串（例如物件、數字）時拒絕，不存成「[object Object]」這類文字。
 export function normalizeCriteria(list) {
   if (!Array.isArray(list)) throw new ValidationError('Criteria must be a list.');
   const criteria = [];
   for (const item of list) {
+    if (item?.text !== undefined && item?.text !== null && typeof item.text !== 'string') {
+      throw new ValidationError('Each criterion text must be a string.');
+    }
     const text = truncate(item?.text, LIMITS.criterionText).value;
     if (!text) continue;
     const rawType = cleanString(item?.evidenceType).toLowerCase() || 'test';
