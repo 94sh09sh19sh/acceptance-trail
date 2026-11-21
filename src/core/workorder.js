@@ -34,9 +34,12 @@ export async function getDraft(store, issueId) {
   return (await store.get(draftKey(issueId))) ?? null;
 }
 
-export async function saveDraft(store, issueId, { criteria, source, at, actor }) {
+// extraction（選填）：從議題描述起草時，條件是怎麼抽出來的（見 resolvers/logic.js 的 draftFromDescription），
+// 面板依此在草稿上方提示。人在面板存草稿、代理提案時不帶，所以存檔後提示就不再顯示。
+export async function saveDraft(store, issueId, { criteria, source, at, actor, extraction }) {
   if (!DRAFT_SOURCES.includes(source)) throw new ValidationError('Unknown draft source.');
   const draft = { criteria: normalizeCriteria(criteria), source, updatedAt: at, updatedBy: actor || 'unknown' };
+  if (extraction) draft.extraction = extraction;
   await store.set(draftKey(issueId), draft);
   return draft;
 }

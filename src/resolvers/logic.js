@@ -2,7 +2,7 @@
 // 人手動記錄證據（recordEvidence）也只在這裡，MCP 工具與 Rovo 動作沒有這個入口。
 // 同樣不 import @forge/*，store 與 jira 由 index.js 注入。
 
-import { extractCriteriaFromAdf } from '../core/adf.js';
+import { extractCriteria } from '../core/adf.js';
 import { AUDIT_FORMATS, toCsv, toMarkdown } from '../core/audit.js';
 import { hashDescription } from '../core/canonical.js';
 import { countTamperedEvents, resetIssueData, restoreTamperedEvents, tamperLatestEvent } from '../core/devtools.js';
@@ -105,17 +105,20 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       return panelView(issue, identity);
     },
 
-    // 從議題描述抽出條列當草稿；現行版存在時，以現行版的條件為底（起草下一版）
+    // 從議題描述抽出條列當草稿；描述抽不到東西而現行版存在時，以現行版的條件為底（起草下一版）。
+    // 草稿記下條件的來源（extraction.from）：找不到 Acceptance criteria 標題而退回全文清單時是 all-lists，面板會提醒人刪掉不是條件的條目。
     async draftFromDescription(identity) {
       const issue = await requireEditor(identity);
       const { workOrder } = await loadIssueState(store, issue.issueId);
-      const parsed = extractCriteriaFromAdf(issue.description).map((text) => ({ text, evidenceType: 'test' }));
+      const { items, from } = extractCriteria(issue.description);
+      const parsed = items.map((text) => ({ text, evidenceType: 'test' }));
       const criteria = parsed.length > 0 ? parsed : workOrder ? workOrder.criteria.map(({ text, evidenceType }) => ({ text, evidenceType })) : [];
       await saveDraft(store, issue.issueId, {
         criteria,
         source: parsed.length > 0 ? 'parser' : 'manual',
         at: now(),
         actor: identity.accountId,
+        extraction: parsed.length > 0 ? { from } : undefined,
       });
       return panelView(issue, identity);
     },

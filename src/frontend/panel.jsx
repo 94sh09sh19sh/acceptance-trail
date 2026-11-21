@@ -29,6 +29,7 @@ import ForgeReconciler, {
   xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
+import { draftNotices } from '../core/draft-notice.js';
 import { isManualEntry, sourceLabel } from '../core/source.js';
 import { countLabel, shortHash } from '../core/text.js';
 
@@ -82,6 +83,8 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
   const update = (uid, patch) => setRows((prev) => prev.map((row) => (row.uid === uid ? { ...row, ...patch } : row)));
   const filled = rows.filter((row) => row.text.trim()).length;
   const plainRows = () => rows.map(({ uid, ...rest }) => rest);
+  // 從描述起草時的提示（例如退回取全文清單）；人存過草稿後就沒有
+  const notices = draftNotices(draft);
 
   return (
     <Stack space="space.150">
@@ -91,6 +94,15 @@ function DraftEditor({ draft, nextRev, busy, onSave, onApprove, onDiscard }) {
           ? 'Proposed by an AI agent. Review every criterion before approving.'
           : 'Edit the criteria and choose the evidence each one needs. Agents cannot read this until you approve it.'}
       </Text>
+      {notices.length ? (
+        <SectionMessage appearance="warning">
+          <Stack space="space.050">
+            {notices.map((notice) => (
+              <Text key={notice}>{notice}</Text>
+            ))}
+          </Stack>
+        </SectionMessage>
+      ) : null}
       {rows.map((row, index) => (
         <Stack key={row.uid} space="space.050">
           <Label labelFor={`criterion-${row.uid}`}>{`AC-${index + 1}`}</Label>

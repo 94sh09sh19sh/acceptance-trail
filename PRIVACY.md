@@ -1,6 +1,6 @@
 # Privacy policy for Acceptance Trail for Jira
 
-Last updated: 2026-11-20
+Last updated: 2026-11-21
 
 Acceptance Trail for Jira ("the app") is an Atlassian Forge app published by an individual developer under the handle `94sh09sh19sh` ("the developer"). This document describes what the app stores, where, and who can see it. Every statement about the app's behaviour can be checked against the source code in this repository.
 
@@ -18,7 +18,7 @@ In Forge key-value storage, keyed by Jira's numeric issue ID:
 
 | Record | Contents |
 |---|---|
-| Draft work order | Acceptance criteria (text and evidence type), how the draft was made (`parser`, `manual` or `agent`), the time, and the account ID of the person who saved it. For a draft proposed by an agent, this is the account that the agent's MCP connection is signed in as. |
+| Draft work order | Acceptance criteria (text and evidence type), how the draft was made (`parser`, `manual` or `agent`), for a draft made from the issue description where the items were found (under an acceptance criteria heading, or in every list of the description), the time, and the account ID of the person who saved it. For a draft proposed by an agent, this is the account that the agent's MCP connection is signed in as. |
 | Approved work order revision | Revision number, criteria (ID, text, evidence type), the approver's account ID, the approval time, a SHA-256 hash of the issue description at approval, the draft source, and the number of the approval event. |
 | Events | An append-only hash chain. Each event has a sequence number, type, time, the acting account ID, the previous hash, its own hash, and a payload (below). |
 | Chain head | The latest sequence number, its hash, and the latest revision number. |
