@@ -75,6 +75,58 @@ test('draft from description: 剛好 30 條不提示；退回全文清單又超�
   assert.deepEqual(draftNotices(bothView.draft), [FALLBACK_NOTICE, 'Found 35 items in the description and kept the first 30. Merge or remove items before you approve.']);
 });
 
+// ---- F6 Draft new revision ----
+
+test('draft new revision: 描述沒改過時以現行版為底，現行版選好的證據類型（AC-2 為 review）保留', async () => {
+  const { ui } = setup(adfDoc(p('Acceptance criteria'), ul('A', 'B')));
+  await ui.draftFromDescription(HUMAN);
+  await ui.approve(HUMAN, { criteria: [{ text: 'A', evidenceType: 'test' }, { text: 'B', evidenceType: 'review' }] });
+  const view = await ui.draftFromDescription(HUMAN);
+  assert.equal(view.stale, false);
+  assert.deepEqual(view.draft.criteria, [{ text: 'A', evidenceType: 'test' }, { text: 'B', evidenceType: 'review' }]);
+  assert.deepEqual(draftNotices(view.draft), []);
+});
+
+test('draft new revision: 描述沒改過時，第 1 版裡人手改過的文字與手動加的條件是下一版草稿的底，不被描述重新解析的結果蓋掉', async () => {
+  const { ui } = setup(adfDoc(p('Acceptance criteria'), ul('A', 'B')));
+  await ui.draftFromDescription(HUMAN);
+  const rev1 = [
+    { text: 'A, measured at 25 °C (edited)', evidenceType: 'analysis' },
+    { text: 'C added by hand', evidenceType: 'demo' },
+  ];
+  await ui.approve(HUMAN, { criteria: rev1 });
+  const view = await ui.draftFromDescription(HUMAN);
+  assert.deepEqual(view.draft.criteria, rev1);
+});
+
+test('draft new revision: 描述改過（stale）時用重新抽出的文字，文字相同的條件帶上現行版的證據類型', async () => {
+  const { ui, jira } = setup(adfDoc(p('Acceptance criteria'), ul('A', 'B')));
+  await ui.draftFromDescription(HUMAN);
+  await ui.approve(HUMAN, { criteria: [{ text: 'A', evidenceType: 'analysis' }, { text: 'B', evidenceType: 'review' }] });
+  jira.issues.get('10001').description = adfDoc(p('Acceptance criteria'), ul('A', 'B changed', 'C'));
+  assert.equal((await ui.getPanel(HUMAN)).stale, true);
+  const view = await ui.draftFromDescription(HUMAN);
+  assert.deepEqual(view.draft.criteria, [
+    { text: 'A', evidenceType: 'analysis' },
+    { text: 'B changed', evidenceType: 'test' },
+    { text: 'C', evidenceType: 'test' },
+  ]);
+  assert.equal(view.draft.source, 'parser');
+  const approved = await ui.approve(HUMAN, {});
+  assert.equal(approved.workOrder.rev, 2);
+  assert.equal(approved.stale, false);
+});
+
+test('draft new revision: 描述改過但抽不到任何條目時沿用現行版的條件', async () => {
+  const { ui, jira } = setup(adfDoc(p('Acceptance criteria'), ul('A', 'B')));
+  await ui.draftFromDescription(HUMAN);
+  await ui.approve(HUMAN, { criteria: [{ text: 'A', evidenceType: 'demo' }, { text: 'B', evidenceType: 'test' }] });
+  jira.issues.get('10001').description = adfDoc(p('Criteria moved to the linked design document.'));
+  const view = await ui.draftFromDescription(HUMAN);
+  assert.deepEqual(view.draft.criteria, [{ text: 'A', evidenceType: 'demo' }, { text: 'B', evidenceType: 'test' }]);
+  assert.equal(view.draft.extraction, undefined);
+});
+
 test('save draft: 人在草稿編輯器加到超過 30 條時照舊拒絕，草稿不變', async () => {
   const { ui } = setup(adfDoc(p('Acceptance criteria'), ul('A')));
   await ui.draftFromDescription(HUMAN);

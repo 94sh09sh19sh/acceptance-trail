@@ -106,22 +106,33 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       return panelView(issue, identity);
     },
 
-    // 從議題描述抽出條列當草稿；描述抽不到東西而現行版存在時，以現行版的條件為底（起草下一版）。
-    // 草稿記下條件的來源與條數（extraction）：找不到 Acceptance criteria 標題而退回全文清單時 from 是 all-lists，
+    // 起草（Draft work order，或有現行版時的 Draft new revision）：
+    //   - 沒有現行版：取議題描述抽出的條列。
+    //   - 有現行版、描述沒改過：以現行版的條件（文字與證據類型）為底，人手改過的文字、手動加或刪的條件都照現行版。
+    //   - 有現行版、描述改過（stale）：用描述重新抽出的文字；文字和現行版某條相同時，帶上那條的證據類型。
+    //     描述抽不到東西時沿用現行版的條件。
+    // 用描述抽出的條件時，草稿記下來源與條數（extraction）：找不到 Acceptance criteria 標題而退回全文清單時 from 是 all-lists，
     // 面板會提醒人刪掉不是條件的條目。抽到的條目超過一張工作單的上限時只留前面的，存檔照常成功，面板提示找到幾條、留了幾條。
     async draftFromDescription(identity) {
       const issue = await requireEditor(identity);
       const { workOrder } = await loadIssueState(store, issue.issueId);
-      const { items, from } = extractCriteria(issue.description);
-      const parsed = items.slice(0, LIMITS.maxCriteria).map((text) => ({ text, evidenceType: 'test' }));
-      const criteria = parsed.length > 0 ? parsed : workOrder ? workOrder.criteria.map(({ text, evidenceType }) => ({ text, evidenceType })) : [];
-      await saveDraft(store, issue.issueId, {
-        criteria,
-        source: parsed.length > 0 ? 'parser' : 'manual',
-        at: now(),
-        actor: identity.accountId,
-        extraction: parsed.length > 0 ? { from, found: items.length, kept: parsed.length } : undefined,
-      });
+      const current = workOrder ? workOrder.criteria.map(({ text, evidenceType }) => ({ text, evidenceType })) : [];
+      const stale = Boolean(workOrder) && workOrder.descriptionHash !== hashDescription(issue.description);
+      let criteria = current;
+      let source = 'manual';
+      let extraction;
+      if (!workOrder || stale) {
+        const { items, from } = extractCriteria(issue.description);
+        if (items.length > 0) {
+          const sameText = (text) => text.replace(/\s+/g, ' ').trim();
+          const currentType = new Map();
+          for (const c of current) if (!currentType.has(sameText(c.text))) currentType.set(sameText(c.text), c.evidenceType);
+          criteria = items.slice(0, LIMITS.maxCriteria).map((text) => ({ text, evidenceType: currentType.get(sameText(text)) ?? 'test' }));
+          source = 'parser';
+          extraction = { from, found: items.length, kept: criteria.length };
+        }
+      }
+      await saveDraft(store, issue.issueId, { criteria, source, at: now(), actor: identity.accountId, extraction });
       return panelView(issue, identity);
     },
 
