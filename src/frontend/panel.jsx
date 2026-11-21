@@ -678,7 +678,8 @@ function App() {
           nextRev={nextRev}
           busy={busy}
           onSave={(rows) => run('saveDraft', 'save', { criteria: rows })}
-          onApprove={(rows) => run('approve', 'approve', { criteria: rows })}
+          // 帶上畫面上的版次：請求重送或另一個分頁已經核准過時，後端回 ALREADY_APPROVED，不會多出一版
+          onApprove={(rows) => run('approve', 'approve', { criteria: rows, expectedRev: nextRev })}
           onDiscard={() => run('discardDraft', 'discard')}
         />
       ) : null}

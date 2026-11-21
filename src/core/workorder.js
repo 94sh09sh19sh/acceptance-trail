@@ -69,14 +69,25 @@ async function recordHeadRev(store, issueId, rev) {
   await store.set(headKey(issueId), { ...head, rev });
 }
 
+// 下一個要核准的版次。expectedRev（選填）是呼叫端預期要建立的版次（議題面板送它畫面上的「revision N」）；
+// 不符代表已經有人核准過（請求重送、連點或另一個分頁），回 ALREADY_APPROVED。沒給就不比對。
+export async function nextRevision(store, issueId, expectedRev) {
+  const current = await getCurrentWorkOrder(store, issueId);
+  const rev = (current?.rev ?? 0) + 1;
+  if (expectedRev !== undefined && rev !== expectedRev) {
+    throw new DomainError('ALREADY_APPROVED', 'This work order was already approved. Select Refresh to see the current revision.');
+  }
+  return rev;
+}
+
 // 核准：把草稿凍結成下一個版次，寫入一筆 work_order_approved 事件。只能由人在議題面板觸發。
-export async function approveDraft(store, issueId, { actor, at, descriptionHash }) {
+// 帶 expectedRev 時只會建立那個版次（版次記錄用「鍵不存在才寫入」，同一個版次只有一個請求寫得進去）。
+export async function approveDraft(store, issueId, { actor, at, descriptionHash, expectedRev }) {
   const draft = await getDraft(store, issueId);
   if (!draft || draft.criteria.length === 0) {
     throw new DomainError('EMPTY_DRAFT', 'There is no draft with at least one criterion to approve.');
   }
-  const current = await getCurrentWorkOrder(store, issueId);
-  const rev = (current?.rev ?? 0) + 1;
+  const rev = await nextRevision(store, issueId, expectedRev);
   const criteria = draft.criteria.map((c, index) => ({ id: `AC-${index + 1}`, text: c.text, evidenceType: c.evidenceType }));
   const workOrder = { rev, criteria, approvedBy: actor || 'unknown', approvedAt: at, descriptionHash, draftSource: draft.source };
   if (!(await store.setIfAbsent(revKey(issueId, rev), workOrder))) {

@@ -1,7 +1,9 @@
 // 議題面板後端的起草、核准、覆核流程（找錯報告 2026-11-21 的 panel-flow 重現測試，改成 repo 的格式）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { errorResult } from '../src/actions/tools.js';
 import { CRITERIA_FROM } from '../src/core/adf.js';
+import { listEvents } from '../src/core/chain.js';
 import { FALLBACK_NOTICE, draftNotices } from '../src/core/draft-notice.js';
 import { LIMITS } from '../src/core/validate.js';
 import { createResolverLogic } from '../src/resolvers/logic.js';
@@ -125,6 +127,72 @@ test('draft new revision: 描述改過但抽不到任何條目時沿用現行版
   const view = await ui.draftFromDescription(HUMAN);
   assert.deepEqual(view.draft.criteria, [{ text: 'A', evidenceType: 'demo' }, { text: 'B', evidenceType: 'test' }]);
   assert.equal(view.draft.extraction, undefined);
+});
+
+// ---- F7 重複核准 ----
+
+test('approve 連按兩次（第二個請求在第一個完成後才到）：帶 expectedRev 時回 ALREADY_APPROVED，不多出第 2 版也不留草稿', async () => {
+  const { ui, store } = setup(adfDoc(p('Acceptance criteria'), ul('A', 'B')));
+  await ui.draftFromDescription(HUMAN);
+  const rows = [{ text: 'A', evidenceType: 'test' }, { text: 'B', evidenceType: 'test' }];
+  const first = await ui.approve(HUMAN, { criteria: rows, expectedRev: 1 });
+  assert.equal(first.workOrder.rev, 1);
+  const eventsBefore = (await listEvents(store, '10001')).length;
+  const second = await ui.approve(HUMAN, { criteria: rows, expectedRev: 1 }).catch((e) => e);
+  assert.deepEqual(errorResult(second), {
+    ok: false,
+    error: { code: 'ALREADY_APPROVED', message: 'This work order was already approved. Select Refresh to see the current revision.' },
+  });
+  const view = await ui.getPanel(HUMAN);
+  assert.equal(view.workOrder.rev, 1);
+  assert.equal(view.draft, null);
+  assert.deepEqual(view.state.previousRevisions, []);
+  assert.equal((await listEvents(store, '10001')).length, eventsBefore);
+  assert.equal(view.chain.verified, true);
+});
+
+test('approve 同時送兩次：只成立一版（帶或不帶 expectedRev 都一樣）', async () => {
+  for (const expectedRev of [undefined, 1]) {
+    const { ui } = setup(adfDoc(p('Acceptance criteria'), ul('A', 'B')));
+    await ui.draftFromDescription(HUMAN);
+    const rows = [{ text: 'A', evidenceType: 'test' }];
+    const results = await Promise.allSettled([ui.approve(HUMAN, { criteria: rows, expectedRev }), ui.approve(HUMAN, { criteria: rows, expectedRev })]);
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, `expectedRev=${expectedRev}`);
+    const failed = results.find((r) => r.status === 'rejected');
+    assert.ok(['CONCURRENT_APPROVAL', 'ALREADY_APPROVED', 'EMPTY_DRAFT'].includes(failed.reason.code), failed.reason.code);
+    const view = await ui.getPanel(HUMAN);
+    assert.equal(view.workOrder.rev, 1);
+    assert.equal(view.chain.verified, true);
+  }
+});
+
+test('approve：expectedRev 是下一版時照常核准；沒帶 expectedRev 的呼叫行為不變（連續核准會成為第 2 版）', async () => {
+  const { ui } = setup(adfDoc(p('Acceptance criteria'), ul('A')));
+  await ui.draftFromDescription(HUMAN);
+  assert.equal((await ui.approve(HUMAN, { expectedRev: '1' })).workOrder.rev, 1);
+  await ui.draftFromDescription(HUMAN);
+  assert.equal((await ui.approve(HUMAN, { expectedRev: 2 })).workOrder.rev, 2);
+  // 不帶 expectedRev：和以前一樣，先存畫面送來的條件再核准成下一版
+  const again = await ui.approve(HUMAN, { criteria: [{ text: 'A', evidenceType: 'test' }] });
+  assert.equal(again.workOrder.rev, 3);
+  const bad = await ui.approve(HUMAN, { criteria: [{ text: 'A', evidenceType: 'test' }], expectedRev: 0 }).catch((e) => e);
+  assert.equal(errorResult(bad).error.code, 'INVALID_INPUT');
+  assert.equal((await ui.getPanel(HUMAN)).workOrder.rev, 3);
+});
+
+// ---- F5 覆核時已有較新證據（後端部分；前端對話框的顯示見 src/frontend/panel.jsx）----
+
+test('review: 覆核時已有較新證據，後端回 OUTDATED_EVIDENCE 且不寫入', async () => {
+  const { ui, store } = setup(adfDoc(p('Acceptance criteria'), ul('A')));
+  await ui.draftFromDescription(HUMAN);
+  await ui.approve(HUMAN, {});
+  const first = await ui.recordEvidence(HUMAN, { criterionId: 'AC-1', workOrderRev: 1, verdict: 'pass', evidenceType: 'test', summary: 'first' });
+  const oldSeq = first.state.criteria[0].latestEvidence.seq;
+  await ui.recordEvidence(HUMAN, { criterionId: 'AC-1', workOrderRev: 1, verdict: 'pass', evidenceType: 'test', summary: 'second' });
+  const before = (await listEvents(store, '10001')).length;
+  const error = await ui.review(HUMAN, { evidenceSeq: oldSeq, decision: 'accept', note: '' }).catch((e) => e);
+  assert.deepEqual(errorResult(error).error, { code: 'OUTDATED_EVIDENCE', message: 'Newer evidence exists for this criterion. Review the latest one.' });
+  assert.equal((await listEvents(store, '10001')).length, before);
 });
 
 test('save draft: 人在草稿編輯器加到超過 30 條時照舊拒絕，草稿不變', async () => {

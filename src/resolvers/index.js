@@ -32,7 +32,8 @@ define('getPanel', (identity) => logic.getPanel(identity));
 define('draftFromDescription', (identity) => logic.draftFromDescription(identity));
 define('saveDraft', (identity, payload) => logic.saveDraft(identity, { criteria: payload.criteria }));
 define('discardDraft', (identity) => logic.discardDraft(identity));
-define('approve', (identity, payload) => logic.approve(identity, { criteria: payload.criteria }));
+// expectedRev：面板預期要建立的版次，已經有人核准過就回 ALREADY_APPROVED（見 logic.js 的 approve）
+define('approve', (identity, payload) => logic.approve(identity, { criteria: payload.criteria, expectedRev: payload.expectedRev }));
 // 手動記錄證據：只轉交表單欄位，來源與代理名稱由後端決定（見 logic.js 的 recordEvidence）
 define('recordEvidence', (identity, payload) =>
   logic.recordEvidence(identity, {

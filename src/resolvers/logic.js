@@ -10,7 +10,7 @@ import { summaryPrefix } from '../core/keys.js';
 import { MIRROR_PROPERTY_KEY } from '../core/mirror.js';
 import { EVIDENCE_SOURCE } from '../core/source.js';
 import { GAP_KINDS } from '../core/state.js';
-import { LIMITS } from '../core/validate.js';
+import { LIMITS, requirePositiveInteger } from '../core/validate.js';
 import { requireFixVersions, resolveVersionFilter, withFixVersions } from '../core/version-lookup.js';
 import { describeVersionFilter, filterByVersion, parseVersionFilter, totalsOf, versionFileTag } from '../core/versions.js';
 import {
@@ -18,6 +18,7 @@ import {
   approveDraft,
   discardDraft,
   loadIssueState,
+  nextRevision,
   refreshSummary,
   reviewEvidence,
   saveDraft,
@@ -148,10 +149,14 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
       return panelView(issue, identity);
     },
 
-    // 核准前先存下畫面上的最新編輯，再以當下的議題描述雜湊核准
-    async approve(identity, { criteria }) {
+    // 核准前先存下畫面上的最新編輯，再以當下的議題描述雜湊核准。
+    // expectedRev（選填）：面板送它預期要建立的版次。已經有人核准過（重送、連點、另一個分頁）就回 ALREADY_APPROVED，
+    // 先比對再存草稿，所以被拒的請求不會留下草稿、也不會建立新版次。沒帶的呼叫照舊。
+    async approve(identity, { criteria, expectedRev } = {}) {
       const issue = await requireEditor(identity);
       const at = now();
+      const expected = expectedRev === undefined || expectedRev === null ? undefined : requirePositiveInteger(expectedRev, 'expectedRev');
+      if (expected !== undefined) await nextRevision(store, issue.issueId, expected);
       if (Array.isArray(criteria)) {
         await saveDraft(store, issue.issueId, { criteria, source: 'manual', at, actor: identity.accountId });
       }
@@ -159,6 +164,7 @@ export function createResolverLogic({ store, jira, now = () => new Date().toISOS
         actor: identity.accountId,
         at,
         descriptionHash: hashDescription(issue.description),
+        expectedRev: expected,
       });
       return panelView(issue, identity);
     },
