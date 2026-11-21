@@ -161,7 +161,9 @@ test('ADF：標題和清單之間只隔一段說明文字時取清單；說明�
   const colon = adfDoc(para('Acceptance criteria'), para('The feature must:'), ul('A', 'B'));
   const colonThenText = adfDoc(h(2, 'Acceptance criteria'), para('The feature must:'), para('These were agreed with the customer.'), ul('A', 'B'), h(2, 'Notes'), ul('N'));
   const boldLabel = adfDoc(h(2, 'Acceptance criteria'), para(text('Export', [{ type: 'strong' }])), ul('A'), para(text('Import', [{ type: 'strong' }])), ul('B'), h(2, 'Notes'), ul('N'));
-  for (const doc of [plain, colon, colonThenText, boldLabel]) assert.deepEqual(extractCriteriaFromAdf(doc), ['A', 'B']);
+  const subsections = adfDoc(h(2, 'Acceptance criteria'), para('Both apply to CSV and JSON.'), h(3, 'Export'), ul('A'), h(3, 'Import'), ul('B'), h(2, 'Notes'), ul('N'));
+  const textThenColon = adfDoc(para('Acceptance criteria'), para('These were agreed with the customer.'), para('The feature must:'), ul('A', 'B'));
+  for (const doc of [plain, colon, colonThenText, boldLabel, subsections, textThenColon]) assert.deepEqual(extractCriteriaFromAdf(doc), ['A', 'B']);
 });
 
 test('ADF：說明段落後面不是緊接清單（兩段以上）時取段落，不跳過段落去抓後面的清單', () => {

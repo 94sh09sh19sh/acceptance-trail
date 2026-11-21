@@ -165,7 +165,8 @@ function tableRows(table) {
 //   - 清單：取清單。heading 取到下一個同級或更高級標題前的所有清單；段落式標題只取緊接著的清單。
 //   - 表格：逐列取。
 //   - 段落：連續的非空段落逐段一條，遇到標題、其他小節名稱（例如 Out of scope、Notes:）、下一個標籤或其他區塊就停，
-//     不跳過段落去抓後面的清單。但只有一段、後面緊接清單或表格時，這段是說明文字，改取那個清單或表格。
+//     不跳過段落去抓後面的清單。但只有一段、後面緊接清單、表格或（heading 底下的）子標題時（中間可隔一行標籤），
+//     這段是說明文字，改取後面的清單或表格。
 //   開頭若是一行標籤式的引言（例如「The feature must:」）先略過。
 function sectionUnderHeader(blocks, i) {
   const header = blocks[i];
@@ -174,6 +175,7 @@ function sectionUnderHeader(blocks, i) {
     (block?.type === 'heading' && (block.attrs?.level ?? 1) <= level) ||
     isSectionName(block) ||
     (level === 99 && block?.type === 'paragraph' && isCriteriaHeader(block));
+  const opensSubsection = (block) => block?.type === 'heading' && !endsSection(block);
 
   let j = skipEmpty(blocks, i + 1);
   if (j < blocks.length && isLabel(blocks[j]) && !endsSection(blocks[j])) j = skipEmpty(blocks, j + 1);
@@ -181,10 +183,13 @@ function sectionUnderHeader(blocks, i) {
   if (!first || endsSection(first)) return [];
   if (first.type === 'paragraph') {
     const { texts, next } = paragraphRun(blocks, j, endsSection);
-    const after = blocks[next];
-    const intro = texts.length === 1 && after && (LIST_TYPES.has(after.type) || after.type === 'table');
+    // 說明文字與清單之間可能還隔一行標籤（例如「The feature must:」）
+    let k = next;
+    if (k < blocks.length && isLabel(blocks[k]) && !endsSection(blocks[k])) k = skipEmpty(blocks, k + 1);
+    const after = blocks[k];
+    const intro = texts.length === 1 && after && (LIST_TYPES.has(after.type) || after.type === 'table' || opensSubsection(after));
     if (!intro) return texts;
-    j = next;
+    j = k;
   }
   if (blocks[j].type === 'table') return tableRows(blocks[j]);
 
