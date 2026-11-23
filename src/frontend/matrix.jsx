@@ -34,9 +34,11 @@ import { ALL_VERSIONS, describeVersionFilter, filterByVersion, filterFromValue, 
 // 專案頁：追溯矩陣。每列一個有工作單的議題，可依缺口種類與修正版本篩選；表格每頁 50 列。
 // 修正版本篩選會同時改變表格、上方的統計與稽核包匯出的範圍（延伸功能 5）。
 
+// 順序同 core/state.js 的 GAP_KINDS，也是「Filter by gap」選單的順序。Not run 的外觀和議題面板的 not run 判定相同
 const GAP_LABELS = {
   'no-evidence': { text: 'No evidence', appearance: 'default' },
   failed: { text: 'Failed', appearance: 'removed' },
+  'not-run': { text: 'Not run', appearance: 'moved' },
   unreviewed: { text: 'Unreviewed', appearance: 'inprogress' },
   rejected: { text: 'Rejected', appearance: 'removed' },
   stale: { text: 'Stale', appearance: 'moved' },

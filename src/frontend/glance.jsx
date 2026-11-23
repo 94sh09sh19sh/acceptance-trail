@@ -109,8 +109,9 @@ function App() {
             <Inline key={criterion.id} space="space.100" alignBlock="center" shouldWrap>
               <Text weight="semibold">{criterion.id}</Text>
               <Lozenge appearance={status.appearance}>{status.text}</Lozenge>
-              {/* 狀態已經能表示沒有證據、未覆核或被駁回；只有判定為失敗時才需要另外標記 */}
+              {/* 狀態已經能表示沒有證據、未覆核或被駁回；只有判定為失敗或沒有執行時才需要另外標記 */}
               {criterion.gap === 'failed' ? <Lozenge appearance="removed">Failed</Lozenge> : null}
+              {criterion.gap === 'not-run' ? <Lozenge appearance="moved">Not run</Lozenge> : null}
             </Inline>
           );
         })}

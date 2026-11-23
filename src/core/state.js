@@ -9,10 +9,11 @@ export const STATUS = Object.freeze({
   REJECTED: 'rejected',
 });
 
-// 缺口種類（規格第 3 節）
+// 缺口種類（規格第 3 節）。not-run 和 failed 分開：「沒有執行」不是「失敗」，兩者都算缺口。
 export const GAP = Object.freeze({
   NO_EVIDENCE: 'no-evidence',
   FAILED: 'failed',
+  NOT_RUN: 'not-run',
   UNREVIEWED: 'unreviewed',
   REJECTED: 'rejected',
   STALE: 'stale',
@@ -50,8 +51,10 @@ export function deriveState(events, workOrder, { stale = false } = {}) {
       if (!review) status = STATUS.SUBMITTED;
       else status = review.payload.decision === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED;
     }
+    // 判定不是 pass 的缺口種類只看判定，覆核結果不改變它（接受或退回一筆 fail／not-run 仍是 failed／not-run）
     let gap = null;
     if (!evidence) gap = GAP.NO_EVIDENCE;
+    else if (evidence.payload.verdict === 'not-run') gap = GAP.NOT_RUN;
     else if (evidence.payload.verdict !== 'pass') gap = GAP.FAILED;
     else if (status === STATUS.REJECTED) gap = GAP.REJECTED;
     else if (status === STATUS.SUBMITTED) gap = GAP.UNREVIEWED;

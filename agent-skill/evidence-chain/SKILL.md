@@ -58,7 +58,8 @@ A successful `submit-evidence` returns `seq` and `hash`. If `truncated` lists fi
 ## Gap check
 `get-evidence-status` returns `chainVerified`, `stale`, `gapCount` and, per criterion, `status` (`no-evidence`, `submitted`, `accepted`, `rejected`), `gap`, `latestVerdict` and `reviewNote`.
 - `gap: "no-evidence"`: you missed a criterion. Implement and submit it.
-- `gap: "failed"`: your latest verdict was `fail` or `not-run`. Fix it and resubmit, or explain the blocker.
+- `gap: "failed"`: your latest verdict was `fail`. Fix it and resubmit, or explain the blocker.
+- `gap: "not-run"`: your latest verdict was `not-run`, so the check has not been run. Run it and resubmit, or explain why it cannot run. Do not call it failed.
 - `gap: "rejected"`: a person rejected it. Read `reviewNote`, fix, rerun, submit new evidence.
 - `gap: "unreviewed"`: waiting for a person. That is expected after you submit; tell them. It is not yours to resolve.
 - `chainVerified: false`: tell the person. Do not try to repair or resubmit.

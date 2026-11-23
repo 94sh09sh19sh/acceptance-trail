@@ -160,7 +160,8 @@ Failures return `{ ok: false, error: { code, message } }` and store nothing.
 - **Criterion status:** `no-evidence`, `submitted` (awaiting review), `accepted`, `rejected`. Only the latest evidence for a criterion counts, and only the latest can be reviewed. Earlier submissions for the same revision stay in the chain and are listed as `superseded` in the evidence **History** (issue panel, **Details**) and in the audit pack.
 - **Gap kinds:**
   - `no-evidence`
-  - `failed`: the latest verdict is fail or not-run
+  - `failed`: the latest verdict is fail
+  - `not-run`: the latest verdict is not-run, so the check was not run. It is a gap, but not a failure. Like `failed`, it stays a gap when the evidence is accepted or rejected.
   - `unreviewed`
   - `rejected`
   - `stale`: the issue description changed after approval
@@ -187,7 +188,7 @@ Each issue with an approved work order carries an issue property, `evidence-chai
 | `evidenceCriteria` | `total` | number | Number of acceptance criteria |
 | `evidenceAccepted` | `accepted` | number | Criteria with accepted evidence |
 | `evidenceGaps` | `gapCount` | number | Gaps, counting a stale work order as one |
-| `evidenceGapKind` | `gapKinds` | string list | `no-evidence`, `failed`, `unreviewed`, `rejected`, `stale` |
+| `evidenceGapKind` | `gapKinds` | string list | `no-evidence`, `failed`, `not-run`, `unreviewed`, `rejected`, `stale` |
 | `evidenceStale` | `stale` | string | `"true"` or `"false"` |
 | `evidenceUpdated` | `updatedAt` | date | When the counts last changed |
 
@@ -197,6 +198,7 @@ Examples:
 project = BMS AND evidenceGaps > 0 ORDER BY evidenceGaps DESC
 project = BMS AND evidenceStale = "true"
 project = BMS AND evidenceGapKind = "failed"
+project = BMS AND evidenceGapKind = "not-run"
 project = BMS AND evidenceCriteria > 0 AND evidenceGaps = 0
 issue.property[evidence-chain-summary].gapCount > 0
 

@@ -81,10 +81,12 @@ modules:
 
         Do not judge whether evidence is sufficient, correct or compliant.
         Report the recorded facts: status (no-evidence, submitted, accepted,
-        rejected), gap kind (no-evidence, failed, unreviewed, rejected, stale),
-        criterion IDs and work order revisions. Only people can approve work
-        orders and accept or reject evidence in the Jira issue panel; you
-        cannot do either, and you must say so if asked.
+        rejected), gap kind (no-evidence, failed, not-run, unreviewed,
+        rejected, stale), criterion IDs and work order revisions. Gap kind
+        not-run means the latest evidence says this check was not run; never
+        call it failed. Only people can approve work orders and accept or
+        reject evidence in the Jira issue panel; you cannot do either, and
+        you must say so if asked.
 
         For project questions such as "what evidence is still missing", call
         list-gaps with the project key. If the user has not given a project
@@ -229,9 +231,9 @@ modules:
       actionVerb: GET
       description: >
         Lists evidence gaps in a Jira project by issue: gap kind (no-evidence,
-        failed, unreviewed, rejected, stale) and criterion ID (null for
-        stale). Optional fixVersion limits it to one version, for release
-        checks. Use it to see what evidence is missing.
+        failed, not-run, unreviewed, rejected, stale) and criterion ID (null
+        for stale). Optional fixVersion limits it to one version, for release
+        checks. Use it to find missing evidence.
       inputs:
         projectKey:
           title: Project key

@@ -207,7 +207,8 @@ test('record evidence: status rules are unchanged (latest counts, fail and not-r
   assert.equal(view.state.criteria[0].status, STATUS.SUBMITTED);
   assert.equal(view.state.criteria[0].gap, GAP.FAILED);
   view = await ui.recordEvidence(HUMAN, form('AC-2', { verdict: 'not-run' }));
-  assert.equal(view.state.criteria[1].gap, GAP.FAILED);
+  // not-run 是獨立的缺口種類，不算成 failed
+  assert.equal(view.state.criteria[1].gap, GAP.NOT_RUN);
   const firstAc1 = view.state.criteria[0].latestEvidence.seq;
 
   // 同一條再記一次：最新一筆算數，舊的成為 superseded
